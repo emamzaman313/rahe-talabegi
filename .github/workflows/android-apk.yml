@@ -11,17 +11,18 @@ permissions:
 
 jobs:
   build-apk:
+    name: Build Rah-e Talabegi APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
-      - name: Download project
+      - name: Checkout project
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: '22'
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -31,16 +32,19 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
 
-      - name: Install Android SDK packages
-        run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
+      - name: Accept Android SDK licenses
+        run: yes | sdkmanager --licenses || true
+
+      - name: Install Android SDK
+        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Test project
+      - name: Run tests
         run: npm test
 
       - name: Build website
@@ -49,9 +53,11 @@ jobs:
           VITE_SUPABASE_URL: https://gnbwcupxtbsjdgnncort.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
-      - name: Prepare Android app
+      - name: Prepare Android project
         run: |
-          npx cap add android
+          if [ ! -d android ]; then
+            npx cap add android
+          fi
           npx cap sync android
         env:
           VITE_SUPABASE_URL: https://gnbwcupxtbsjdgnncort.supabase.co
@@ -61,7 +67,7 @@ jobs:
         working-directory: android
         run: ./gradlew --no-daemon assembleDebug
 
-      - name: Save APK
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: rahe-talabegi-apk
