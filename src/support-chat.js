@@ -1,13 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
 import './support-chat.css';
-import { escapeHtml, formatTimestamp, isSupportAgent, isValidSupabaseConfig, normalizeMessage, statusLabel } from './support-utils.mjs';
+import { supabase as sharedSupabase, isSupabaseConfigured } from './supabase-client.js';
+import { escapeHtml, formatTimestamp, isSupportAgent, normalizeMessage, statusLabel } from './support-utils.mjs';
 
-const PROJECT_URL = import.meta.env.VITE_SUPABASE_URL || '';
-const PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
-const CONFIGURED = isValidSupabaseConfig(PROJECT_URL, PUBLISHABLE_KEY);
-const db = CONFIGURED ? createClient(PROJECT_URL, PUBLISHABLE_KEY, {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
-}) : null;
+const CONFIGURED = isSupabaseConfigured;
+const db = sharedSupabase;
 
 let activeRoot = null;
 let currentUser = null;

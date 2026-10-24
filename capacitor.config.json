@@ -1,6 +1,6 @@
 {
   "appId": "ir.rahetalabegi.app",
-  "appName": "راه طلبگی",
+  "appName": "هم‌قدم",
   "webDir": "dist",
   "server": {
     "androidScheme": "https"

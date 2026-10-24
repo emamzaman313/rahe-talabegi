@@ -6,6 +6,7 @@ import path from 'node:path';
 const root = path.resolve(import.meta.dirname, '..');
 const sql = fs.readFileSync(path.join(root, 'supabase/migrations/20261022000000_support_chat.sql'), 'utf8');
 const client = fs.readFileSync(path.join(root, 'src/support-chat.js'), 'utf8');
+const supabaseClient = fs.readFileSync(path.join(root, 'src/supabase-client.js'), 'utf8');
 
 test('RLS is enabled for both support tables', () => {
   assert.match(sql, /alter table public\.support_conversations enable row level security/i);
@@ -26,7 +27,7 @@ test('messages have bounded non-empty bodies and cannot be edited/deleted by app
 
 test('client bundle never contains a service-role credential', () => {
   assert.doesNotMatch(client, /SUPABASE_SERVICE_ROLE_KEY|service_role\s*[:=]/i);
-  assert.match(client, /VITE_SUPABASE_PUBLISHABLE_KEY/);
+  assert.match(supabaseClient, /VITE_SUPABASE_PUBLISHABLE_KEY/);
 });
 
 test('the mobile web entry includes the support page and bundles its module', () => {
