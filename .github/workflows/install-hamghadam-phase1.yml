@@ -1,0 +1,73 @@
+name: Install Hamghadam Phase 1
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'hamghadam-phase1.zip'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: hamghadam-phase1-install
+  cancel-in-progress: false
+
+jobs:
+  install-test-build-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Extract and apply the prepared package
+        id: prepare
+        shell: bash
+        run: |
+          if [ ! -f hamghadam-phase1.zip ]; then
+            echo "Package archive not present; nothing to apply."
+            echo "has_package=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "has_package=true" >> "$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/hamghadam-upload"
+          unzip -q hamghadam-phase1.zip -d "$RUNNER_TEMP/hamghadam-upload"
+          pwsh -NoProfile -File "$RUNNER_TEMP/hamghadam-upload/hamghadam-phase1/install-hamghadam.ps1"
+          rm -f hamghadam-phase1.zip
+
+      - name: Install dependencies
+        if: steps.prepare.outputs.has_package == 'true'
+        run: npm install
+
+      - name: Run tests
+        if: steps.prepare.outputs.has_package == 'true'
+        run: npm test
+
+      - name: Build web app
+        if: steps.prepare.outputs.has_package == 'true'
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://gnbwcupxtbsjdgnncort.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_6Re7lWtqy3kxrF8_SIYLsA_2j47_c20
+
+      - name: Commit the verified changes
+        if: steps.prepare.outputs.has_package == 'true'
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git commit -m "Add Hamghadam phase one auth and Bidayat al-Nahw catalog"
+          git push origin main
