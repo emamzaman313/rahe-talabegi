@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   build-apk:
-    name: Build Rah-e Talabegi APK
+    name: Build Hamghadam APK
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -32,45 +32,52 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
-
-      - name: Accept Android SDK licenses
-        run: yes | sdkmanager --licenses || true
-
-      - name: Install Android SDK
-        run: sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install
 
-      - name: Run tests
-        run: npm test
-
-      - name: Build website
+      - name: Build web app
         run: npm run build
-        env:
-          VITE_SUPABASE_URL: https://gnbwcupxtbsjdgnncort.supabase.co
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
 
-      - name: Prepare Android project
+      - name: Prepare Capacitor Android
         run: |
           if [ ! -d android ]; then
             npx cap add android
           fi
           npx cap sync android
-        env:
-          VITE_SUPABASE_URL: https://gnbwcupxtbsjdgnncort.supabase.co
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+
+      - name: Apply Hamghadam app icon
+        run: |
+          if [ ! -f icon.png ]; then
+            echo "ERROR: Upload icon.png to the repository root first."
+            exit 1
+          fi
+
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
+
+          for item in "mdpi:48" "hdpi:72" "xhdpi:96" "xxhdpi:144" "xxxhdpi:192"; do
+            density="${item%%:*}"
+            size="${item##*:}"
+            target="android/app/src/main/res/mipmap-${density}"
+            mkdir -p "$target"
+
+            convert icon.png \
+              -resize "${size}x${size}" \
+              "$target/ic_launcher.png"
+
+            cp "$target/ic_launcher.png" "$target/ic_launcher_round.png"
+          done
 
       - name: Build APK
         working-directory: android
-        run: ./gradlew --no-daemon assembleDebug
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: rahe-talabegi-apk
+          name: hamghadam-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          retention-days: 14
