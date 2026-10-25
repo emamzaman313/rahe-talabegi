@@ -1,10 +1,8 @@
 name: Build Verified Android APK (Direct Download)
 
 on:
+  workflow_call:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: write
@@ -35,8 +33,6 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          packages: platform-tools
 
       - name: Accept Android SDK licenses
         run: yes | sdkmanager --licenses || true
@@ -50,25 +46,76 @@ jobs:
       - name: Run project tests
         run: npm test
 
+      - name: Prepare web icon and manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s icon.png || { echo "::error::icon.png is missing from repository root."; exit 1; }
+          mkdir -p public
+          cp icon.png public/icon.png
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('index.html')
+          s = p.read_text(encoding='utf-8')
+          additions = '''\n<link rel="icon" type="image/png" href="./icon.png">\n<link rel="apple-touch-icon" href="./icon.png">\n<link rel="manifest" href="./manifest.webmanifest">\n<meta name="theme-color" content="#176b67">\n'''
+          if 'rel="manifest"' not in s:
+              if '</head>' not in s:
+                  raise SystemExit('Could not find </head> in index.html')
+              s = s.replace('</head>', additions + '</head>', 1)
+          p.write_text(s, encoding='utf-8')
+          PY
+          cat > public/manifest.webmanifest <<'MANIFEST'
+          {
+            "name": "هم‌قدم",
+            "short_name": "هم‌قدم",
+            "description": "همراه مسیر علم، مطالعه و رشد",
+            "lang": "fa",
+            "dir": "rtl",
+            "start_url": "./",
+            "scope": "./",
+            "display": "standalone",
+            "background_color": "#f4f3ec",
+            "theme_color": "#176b67",
+            "icons": [{"src":"./icon.png","sizes":"any","type":"image/png","purpose":"any"}]
+          }
+          MANIFEST
+
       - name: Build web assets
         run: npm run build
         env:
           VITE_SUPABASE_URL: https://gnbwcupxtbsjdgnncort.supabase.co
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_6Re7lWtqy3kxrF8_SIYLsA_2j47_c20
 
       - name: Prepare Capacitor Android project
         run: |
-          if [ ! -d android ]; then
-            npx cap add android
-          fi
+          if [ ! -d android ]; then npx cap add android; fi
           npx cap sync android
         env:
           VITE_SUPABASE_URL: https://gnbwcupxtbsjdgnncort.supabase.co
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_6Re7lWtqy3kxrF8_SIYLsA_2j47_c20
+
+      - name: Apply Hamghadam launcher icon
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s icon.png || { echo "::error::icon.png is missing from repository root."; exit 1; }
+          sudo apt-get update
+          sudo apt-get install -y imagemagick
+          for item in "mdpi:48" "hdpi:72" "xhdpi:96" "xxhdpi:144" "xxxhdpi:192"; do
+            density="${item%%:*}"; size="${item##*:}"; target="android/app/src/main/res/mipmap-${density}"
+            mkdir -p "$target"
+            convert icon.png -resize "${size}x${size}" "$target/ic_launcher.png"
+            cp "$target/ic_launcher.png" "$target/ic_launcher_round.png"
+          done
+          for item in "mdpi:108" "hdpi:162" "xhdpi:216" "xxhdpi:324" "xxxhdpi:432"; do
+            density="${item%%:*}"; size="${item##*:}"; target="android/app/src/main/res/mipmap-${density}"
+            mkdir -p "$target"
+            convert icon.png -resize "${size}x${size}" "$target/ic_launcher_foreground.png"
+          done
 
       - name: Build clean debug APK
         working-directory: android
-        run: ./gradlew --no-daemon --stacktrace clean assembleDebug
+        run: chmod +x gradlew && ./gradlew --no-daemon --stacktrace clean assembleDebug
 
       - name: Verify APK and prepare direct-download files
         shell: bash
@@ -77,34 +124,14 @@ jobs:
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           TOOLS="$ANDROID_HOME/build-tools/36.0.0"
           mkdir -p dist-download
-
-          if [ ! -s "$APK" ]; then
-            echo "::error::APK output was not created or is empty."
-            exit 1
-          fi
-
+          test -s "$APK"
           cp "$APK" dist-download/hamghadam-android.apk
-
-          echo "Checking APK archive integrity..."
           unzip -t dist-download/hamghadam-android.apk
-
-          echo "Checking APK signature..."
           "$TOOLS/apksigner" verify --verbose dist-download/hamghadam-android.apk
-
-          echo "Checking Android package manifest..."
           "$TOOLS/aapt" dump badging dist-download/hamghadam-android.apk | tee dist-download/apk-badging.txt
           grep -q "package: name='ir.rahetalabegi.app'" dist-download/apk-badging.txt
           grep -q "sdkVersion:" dist-download/apk-badging.txt
-
-          (
-            cd dist-download
-            sha256sum hamghadam-android.apk > SHA256SUMS.txt
-          )
-
-          echo "APK size:"
-          ls -lh dist-download/hamghadam-android.apk
-          echo "SHA-256:"
-          cat dist-download/SHA256SUMS.txt
+          (cd dist-download && sha256sum hamghadam-android.apk > SHA256SUMS.txt)
 
       - name: Upload verified APK artifact
         uses: actions/upload-artifact@v4
@@ -132,10 +159,8 @@ jobs:
           name: هم‌قدم — آخرین نسخه اندروید
           body: |
             آخرین APK برنامه هم‌قدم که در GitHub Actions ساخته و اعتبارسنجی شده است.
-
             فایل اصلی نصب: hamghadam-android.apk
-
-            فایل SHA256SUMS.txt برای بررسی سلامت دانلود است.
+            SHA256SUMS.txt برای بررسی سلامت دانلود است.
           prerelease: true
           make_latest: false
           overwrite_files: true
