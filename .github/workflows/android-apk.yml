@@ -1,83 +1,20 @@
-name: Build Android APK
+name: Legacy Android APK (Disabled)
+
+# The verified APK workflow is maintained in android-apk-fixed.yml.
+# This legacy workflow is intentionally disabled to avoid duplicate APK builds.
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
 
 permissions:
   contents: read
 
 jobs:
-  build-apk:
-    name: Build Hamghadam APK
+  legacy-disabled:
+    name: Legacy workflow disabled
     runs-on: ubuntu-latest
-    timeout-minutes: 40
-
     steps:
-      - name: Checkout project
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build web app
-        run: npm run build
-
-      - name: Prepare Capacitor Android
+      - name: Explain replacement workflow
         run: |
-          if [ ! -d android ]; then
-            npx cap add android
-          fi
-          npx cap sync android
-
-      - name: Apply Hamghadam app icon
-        run: |
-          if [ ! -f icon.png ]; then
-            echo "ERROR: Upload icon.png to the repository root first."
-            exit 1
-          fi
-
-          sudo apt-get update
-          sudo apt-get install -y imagemagick
-
-          for item in "mdpi:48" "hdpi:72" "xhdpi:96" "xxhdpi:144" "xxxhdpi:192"; do
-            density="${item%%:*}"
-            size="${item##*:}"
-            target="android/app/src/main/res/mipmap-${density}"
-            mkdir -p "$target"
-
-            convert icon.png \
-              -resize "${size}x${size}" \
-              "$target/ic_launcher.png"
-
-            cp "$target/ic_launcher.png" "$target/ic_launcher_round.png"
-          done
-
-      - name: Build APK
-        working-directory: android
-        run: |
-          chmod +x gradlew
-          ./gradlew assembleDebug
-
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: hamghadam-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
+          echo "This legacy workflow is intentionally disabled."
+          echo "Run the Build Verified Android APK workflow instead."
