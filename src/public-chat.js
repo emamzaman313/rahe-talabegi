@@ -1,4 +1,5 @@
 import './public-chat.css';
+import './public-chat-attachments.js';
 import { supabase, isSupabaseConfigured } from './supabase-client.js';
 
 const EMOJIS = ['👍', '❤️', '😂', '🤝', '🙏', '💡'];
@@ -72,3 +73,4 @@ async function deleteMessage(id){const m=messages.find(x=>x.id===id);if(!m||m.se
 async function refresh(){try{if(!user){await openChat();return;}await loadRooms();if(activeRoomId)await fetchMessages(activeRoomId,{scroll:false});notice('گفت‌وگوها تازه شدند.','success');}catch(e){notice(`تازه‌سازی ناموفق بود: ${errorText(e)}`,'error');}}
 function init(){mount();addLauncher();new MutationObserver(addLauncher).observe(document.documentElement,{childList:true,subtree:true});if(supabase)supabase.auth.onAuthStateChange((_event,session)=>{user=session?.user||null;if(!user){void stopRealtime();activeRoomId=null;rooms=[];memberships=new Map();messages=[];reactions=[];if(root&&!root.hidden)authRequired();}});}
 init();
+
