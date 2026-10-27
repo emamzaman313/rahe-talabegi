@@ -13,6 +13,7 @@ import {
 
 const PROFILE_COLUMNS = 'id,display_name,stage,free_minutes,study_style,created_at,updated_at';
 const GATE_ID = 'hg-auth-gate';
+const AUTH_DEADLINE_MS = 20000;
 let user = null;
 let profile = null;
 let mode = 'login';
@@ -23,6 +24,20 @@ let lastHydratedUserId = null;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch]);
+
+function withDeadline(promise, operation, timeoutMs = AUTH_DEADLINE_MS) {
+  let timer;
+  return Promise.race([
+    Promise.resolve(promise),
+    new Promise((_, reject) => {
+      timer = setTimeout(() => {
+        const error = new Error(`${operation} بیش از حد طول کشید.`);
+        error.name = 'TimeoutError';
+        reject(error);
+      }, timeoutMs);
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
 
 function getLegacyProfile() {
   try {
@@ -217,31 +232,47 @@ async function handleSubmit(form) {
   renderGateIntoRoot();
   try {
     if (mode === 'signup') {
-      const { data: response, error } = await supabase.auth.signUp({ email, password, options: { data: { display_name: name } } });
+      const { data: response, error } = await withDeadline(
+        supabase.auth.signUp({ email, password, options: { data: { display_name: name } }}),
+        'ثبت‌نام'
+      );
       if (error) throw error;
       if (response.session) await acceptSession(response.session);
       else setNotice('ثبت‌نام انجام شد. اگر تأیید ایمیل فعال است، ایمیل را تأیید کن و سپس وارد شو.', 'info');
     } else if (mode === 'login') {
-      const { data: response, error } = await supabase.auth.signInWithPassword({ email, password });
+      const { data: response, error } = await withDeadline(
+        supabase.auth.signInWithPassword({ email, password }),
+        'ورود'
+      );
       if (error) throw error;
       await acceptSession(response.session);
     } else if (mode === 'reset') {
       const redirectTo = `${location.origin}${location.pathname}`;
-      const { error } = await supabase.auth.resetPasswordForEmail(email, { redirectTo });
+      const { error } = await withDeadline(
+        supabase.auth.resetPasswordForEmail(email, { redirectTo }),
+        'بازیابی رمز عبور'
+      );
       if (error) throw error;
       setNotice('اگر این ایمیل به حسابی متصل باشد، راهنمای بازیابی ارسال می‌شود.', 'info');
     } else if (mode === 'update') {
-      const { error } = await supabase.auth.updateUser({ password });
+      const { error } = await withDeadline(
+        supabase.auth.updateUser({ password }),
+        'تغییر رمز عبور'
+      );
       if (error) throw error;
       setMode('login');
       setNotice('رمز عبور تغییر کرد. اکنون می‌توانی وارد شوی.', 'info');
     }
   } catch (error) {
     const message = String(error?.message || 'عملیات ناموفق بود.');
-    const friendly = /invalid login credentials/i.test(message) ? 'ایمیل یا رمز عبور درست نیست.'
-      : /email not confirmed/i.test(message) ? 'ایمیل هنوز تأیید نشده است؛ صندوق ایمیلت را بررسی کن.'
-      : /user already registered/i.test(message) ? 'این ایمیل قبلاً ثبت شده است؛ وارد حساب شو.'
-      : `عملیات انجام نشد: ${message}`;
+    const friendly = error?.name === 'TimeoutError' || /timed out|timeout|deadline/i.test(message)
+      ? 'پاسخ سرور به‌موقع نرسید. اتصال اینترنت را بررسی کن و دوباره تلاش کن.'
+      : /failed to fetch|network|fetch|abort/i.test(message)
+        ? 'ارتباط با سرور برقرار نشد. اینترنت را بررسی کن و دوباره تلاش کن.'
+        : /invalid login credentials/i.test(message) ? 'ایمیل یا رمز عبور درست نیست.'
+        : /email not confirmed/i.test(message) ? 'ایمیل هنوز تأیید نشده است؛ صندوق ایمیلت را بررسی کن.'
+        : /user already registered/i.test(message) ? 'این ایمیل قبلاً ثبت شده است؛ وارد حساب شو.'
+        : `عملیات انجام نشد: ${message}`;
     setNotice(friendly, 'error');
   } finally {
     busy = false;
@@ -281,7 +312,7 @@ async function logout() {
   if (!supabase || busy) return;
   busy = true;
   try {
-    const { error } = await supabase.auth.signOut();
+    const { error } = await withDeadline(supabase.auth.signOut(), 'خروج از حساب');
     if (error) throw error;
   } catch (error) {
     busy = false;
@@ -353,10 +384,16 @@ function mount() {
 
   setGateOpen(true);
   renderGateIntoRoot();
-  void supabase.auth.getSession().then(({ data, error }) => {
-    if (error) setNotice(`خواندن نشست انجام نشد: ${error.message}`, 'error');
-    void acceptSession(data?.session || null);
-  }).catch((error) => setNotice(`اتصال ورود ناموفق بود: ${error?.message || 'خطای شبکه'}`, 'error'));
+  void withDeadline(supabase.auth.getSession(), 'بررسی نشست')
+    .then(({ data, error }) => {
+      if (error) setNotice(`خواندن نشست انجام نشد: ${error.message}`, 'error');
+      void acceptSession(data?.session || null);
+    }).catch((error) => {
+      const timedOut = error?.name === 'TimeoutError' || /timed out|timeout|deadline/i.test(String(error?.message || ''));
+      setNotice(timedOut
+        ? 'بررسی اتصال بیش از حد طول کشید. اینترنت را بررسی کن و دوباره تلاش کن.'
+        : `اتصال ورود ناموفق بود: ${error?.message || 'خطای شبکه'}`, 'error');
+    });
 }
 
 mount();
