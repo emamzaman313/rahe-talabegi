@@ -1,0 +1,44 @@
+name: Final Hamghadam Checks and Android Release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  verify-web:
+    name: Run tests and verify web build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run automated tests
+        run: npm test
+
+      - name: Build website with the production Supabase config
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://gnbwcupxtbsjdgnncort.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_6Re7lWtqy3kxrF8_SIYLsA_2j47_c20
+
+  build-android:
+    name: Build and publish the verified Android APK
+    needs: verify-web
+    uses: ./.github/workflows/android-apk-fixed.yml
+    permissions:
+      contents: write
