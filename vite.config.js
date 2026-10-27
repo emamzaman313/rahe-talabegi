@@ -9,7 +9,8 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: 'index.html',
-        supportAdmin: 'support-admin.html'
+        supportAdmin: 'support-admin.html',
+        admin: 'admin.html'
       }
     }
   }
