@@ -1,0 +1,145 @@
+name: Prepare verified Hamghadam quality update
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  verify-and-propose:
+    name: Apply update kit, test, build, and open a review PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout current main without storing a write token
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Download and verify the published update bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP="$RUNNER_TEMP/hamghadam-all-in-one.zip"
+          curl --fail --location --silent --show-error \
+            "https://github.com/nagshe-negar/rahe-talabegi/releases/download/v1.0.0/Hamghadam_All_In_One_Android-1.zip" \
+            --output "$ZIP"
+          echo "2a9be82efd3db52e574f37e5384d19c86c170f81f810c8a8527f8ca516a45101  $ZIP" | sha256sum --check --status
+          mkdir -p "$RUNNER_TEMP/hamghadam-bundle"
+          unzip -q "$ZIP" -d "$RUNNER_TEMP/hamghadam-bundle"
+          test -f "$RUNNER_TEMP/hamghadam-bundle/Hamghadam_All_In_One/quality-update-kit/scripts/apply-integration.mjs"
+          test -f "$RUNNER_TEMP/hamghadam-bundle/Hamghadam_All_In_One/quality-update-kit/scripts/apply-quality-updates.mjs"
+
+      - name: Apply the reviewed, additive update scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          KIT="$RUNNER_TEMP/hamghadam-bundle/Hamghadam_All_In_One/quality-update-kit"
+          node "$KIT/scripts/apply-integration.mjs" "$GITHUB_WORKSPACE"
+          node "$KIT/scripts/apply-quality-updates.mjs" "$GITHUB_WORKSPACE"
+
+      - name: Correct the multiline upload assertion without changing runtime code
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          const path = 'tests/public-chat-attachment-security.test.mjs';
+          let source = fs.readFileSync(path, 'utf8');
+          const desired = String.raw`  assert.match(client, /supabase\s*\.storage\s*\.from\(BUCKET\)\s*\.upload/);`;
+          const lines = source.split('\n');
+          const matches = [];
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].includes('assert.match(client, /supabase') && lines[i].includes('.upload/')) matches.push(i);
+          }
+          if (matches.length === 1) {
+            if (lines[matches[0]].trim() !== desired.trim()) lines[matches[0]] = desired;
+            fs.writeFileSync(path, lines.join('\n'), 'utf8');
+          } else if (!source.includes(desired.trim())) {
+            throw new Error(`Expected one upload assertion in ${path}; found ${matches.length}. No automatic guess was made.`);
+          }
+          NODE
+
+      - name: Install, run all tests, and build web application
+        shell: bash
+        env:
+          VITE_SUPABASE_URL: https://gnbwcupxtbsjdgnncort.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_6Re7lWtqy3kxrF8_SIYLsA_2j47_c20
+        run: |
+          set -euo pipefail
+          npm ci --no-audit --no-fund
+          npm test
+          npm run build
+          git diff --check
+
+      - name: Export patch and status for review if validation fails
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/hamghadam-update-report"
+          git add -N -- . 2>/dev/null || true
+          git diff --binary > "$RUNNER_TEMP/hamghadam-update-report/quality-update.diff" || true
+          git status --short > "$RUNNER_TEMP/hamghadam-update-report/git-status.txt" || true
+          printf 'Workflow run: %s\nCommit tested: %s\n' "$GITHUB_RUN_ID" "$GITHUB_SHA" > "$RUNNER_TEMP/hamghadam-update-report/summary.txt"
+
+      - name: Upload validation patch and status
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hamghadam-quality-update-report-${{ github.run_number }}
+          path: ${{ runner.temp }}/hamghadam-update-report/
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Push validated changes to a review branch and open a draft PR
+        if: success()
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          BRANCH="quality/hamghadam-verified-${GITHUB_RUN_ID}"
+          git checkout -b "$BRANCH"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes were produced; refusing to open an empty PR."
+            exit 1
+          fi
+          git commit -m "Apply validated Hamghadam quality update"
+          TOKEN_B64="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
+          git -c "http.extraheader=AUTHORIZATION: basic $TOKEN_B64" push origin "$BRANCH"
+          BODY=$(cat <<'EOF'
+          این PR از کیت افزایشی هم‌قدم ساخته شده است. تست‌ها و ساخت وب در مرحلهٔ قبل باید موفق شده باشند.
+
+          توجه: فایل migration فقط به مخزن افزوده شده و روی Supabase زنده اجرا نشده است. پیش از ادغام نهایی، تغییرات را بازبینی کنید، از دیتابیس پشتیبان بگیرید و تنظیمات تأیید ایمیل/OTP را در داشبورد Supabase انجام دهید.
+          EOF
+          )
+          PAYLOAD="$(jq -n --arg title 'هم‌قدم: به‌روزرسانی تأییدشدهٔ رابط و امنیت چت' --arg head "$BRANCH" --arg base 'main' --arg body "$BODY" '{title:$title,head:$head,base:$base,body:$body,draft:true}')"
+          HTTP_CODE="$(curl --silent --show-error --output "$RUNNER_TEMP/created-pr.json" --write-out '%{http_code}' \
+            --request POST \
+            --header "Authorization: Bearer $GITHUB_TOKEN" \
+            --header 'Accept: application/vnd.github+json' \
+            --header 'X-GitHub-Api-Version: 2022-11-28' \
+            --header 'Content-Type: application/json' \
+            --data "$PAYLOAD" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls")"
+          if [ "$HTTP_CODE" != "201" ]; then
+            cat "$RUNNER_TEMP/created-pr.json"
+            echo "Changes were pushed to $BRANCH but the PR could not be created automatically."
+            exit 1
+          fi
+          PR_URL="$(jq -r '.html_url' "$RUNNER_TEMP/created-pr.json")"
+          echo "### Draft Pull Request created" >> "$GITHUB_STEP_SUMMARY"
+          echo "$PR_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Review branch" >> "$GITHUB_STEP_SUMMARY"
+          echo "$BRANCH" >> "$GITHUB_STEP_SUMMARY"
