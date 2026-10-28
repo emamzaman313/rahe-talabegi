@@ -32,5 +32,5 @@ test("client creates short-lived signed download links rather than public URLs",
 test("client uses the expected private bucket and validates before upload", () => {
   assert.match(client, /const BUCKET = "hamghadam-chat-files"/);
   assert.match(client, /validateAttachmentFile\(file\)/);
-  assert.match(client, /supabase\.storage\.from\(BUCKET\)\.upload/);
+  assert.match(client, /supabase\s*\.storage\s*\.from\(BUCKET\)\s*\.upload/);
 });
