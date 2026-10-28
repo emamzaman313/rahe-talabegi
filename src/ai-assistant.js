@@ -41,6 +41,7 @@ function addStyles() {
     .hg-ai-status{margin:0 13px 12px;padding:9px 11px;border-radius:10px;font-size:12px;background:var(--soft);color:var(--muted)}.hg-ai-status.error{background:#fff1f3;color:#883447}.dark .hg-ai-status.error{background:#3a2529;color:#f5c7cf}
     .hg-ai-history{padding:12px}.hg-ai-history h3{font-size:14px;margin:2px 0 10px}.hg-ai-history-list{display:grid;gap:6px}.hg-ai-history-item{display:flex;align-items:center;gap:5px;width:100%;text-align:right;border:1px solid transparent;border-radius:10px;padding:8px;background:transparent;color:var(--ink);font-size:11px;overflow-wrap:anywhere}.hg-ai-history-item.active{background:var(--mint);border-color:#c8e4d7}.hg-ai-history-item span{flex:1}.hg-ai-history-item small{display:block;color:var(--muted);font-size:9px}.hg-ai-history-empty{color:var(--muted);font-size:11px;padding:8px 2px}
     .hg-ai-private{font-size:11px;color:var(--muted);margin-top:10px}.hg-ai-chip{display:inline-block;border:1px solid var(--line);border-radius:9px;padding:3px 7px;font-size:10px;color:var(--muted);margin:3px 3px 0 0}
+    .hg-ai-message p{margin:.25em 0}.hg-ai-message h2,.hg-ai-message h3,.hg-ai-message h4{margin:.55em 0 .25em;line-height:1.5}.hg-ai-message ul,.hg-ai-message ol{margin:.35em 0;padding-right:1.4em}.hg-ai-message pre{direction:ltr;text-align:left;overflow:auto;max-width:100%;padding:10px;border-radius:10px;background:#102a31;color:#e7f4ef}.hg-ai-message code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.95em}.hg-ai-message :not(pre)>code{background:#e6eeea;border-radius:5px;padding:1px 4px}.hg-ai-message blockquote{margin:.4em 0;border-right:3px solid var(--teal);padding-right:10px;color:var(--muted)}.hg-ai-message a{color:var(--teal);text-decoration:underline}.hg-ai-copy{margin:2px 8px 8px;min-height:30px;padding:4px 9px;font-size:10px}
     @media(max-width:900px){.hg-ai-layout{grid-template-columns:1fr}.hg-ai-history{order:2}.hg-ai-history-list{grid-template-columns:repeat(2,minmax(0,1fr))}}
     @media(max-width:560px){.hg-ai-list{max-height:55vh;padding:10px}.hg-ai-message{max-width:100%;font-size:12px}.hg-ai-history-list{grid-template-columns:1fr}.hg-ai-heading{padding:13px}}
   `;
@@ -95,6 +96,73 @@ function setStatus(message, type = '') {
   el.className = `hg-ai-status${type ? ` ${type}` : ''}`;
 }
 
+function escapeMarkdownHTML(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[ch]));
+}
+
+function inlineMarkdown(value) {
+  // Escape all model content before selectively enabling a safe Markdown subset.
+  return escapeMarkdownHTML(value)
+    .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>')
+    .replace(/\x60([^\x60\n]+)\x60/g, '<code>$1</code>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+}
+
+function markdownToHtml(value) {
+  const lines = String(value ?? '').replace(/\r\n?/g, '\n').split('\n');
+  const out = [];
+  let paragraph = [];
+  let listType = '';
+  const flushParagraph = () => {
+    if (paragraph.length) out.push('<p>' + paragraph.map(inlineMarkdown).join('<br>') + '</p>');
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (listType) out.push('</' + listType + '>');
+    listType = '';
+  };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*\x60\x60\x60/.test(line)) {
+      flushParagraph(); flushList();
+      const language = line.replace(/^\s*\x60\x60\x60\s*/, '').trim();
+      const code = [];
+      while (i + 1 < lines.length && !/^\s*\x60\x60\x60/.test(lines[i + 1])) code.push(lines[++i]);
+      if (i + 1 < lines.length) i++;
+      const langAttr = /^[a-zA-Z0-9_+#.-]{1,24}$/.test(language) ? ' data-language="' + escapeMarkdownHTML(language) + '"' : '';
+      out.push('<pre><code' + langAttr + '>' + escapeMarkdownHTML(code.join('\n')) + '</code></pre>');
+      continue;
+    }
+    if (!line.trim()) { flushParagraph(); flushList(); continue; }
+    const heading = line.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      flushParagraph(); flushList();
+      const level = Math.min(4, heading[1].length + 1);
+      out.push('<h' + level + '>' + inlineMarkdown(heading[2]) + '</h' + level + '>');
+      continue;
+    }
+    const bullet = line.match(/^\s*[-*•]\s+(.+)$/);
+    const ordered = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    if (bullet || ordered) {
+      flushParagraph();
+      const wanted = bullet ? 'ul' : 'ol';
+      if (listType !== wanted) { flushList(); listType = wanted; out.push('<' + listType + '>'); }
+      out.push('<li>' + inlineMarkdown((bullet || ordered)[1]) + '</li>');
+      continue;
+    }
+    if (/^\s*>/.test(line)) {
+      flushParagraph(); flushList();
+      out.push('<blockquote><p>' + inlineMarkdown(line.replace(/^\s*>\s?/, '')) + '</p></blockquote>');
+      continue;
+    }
+    flushList();
+    paragraph.push(line);
+  }
+  flushParagraph(); flushList();
+  return out.join('');
+}
+
 function renderTranscript() {
   const list = document.getElementById('hg-ai-transcript');
   if (!list) return;
@@ -116,8 +184,35 @@ function renderTranscript() {
     const label = document.createElement('small');
     label.textContent = `${msg.role === 'assistant' ? 'دستیار هم‌قدم' : 'شما'}${msg.created_at ? ` · ${shortTime(msg.created_at)}` : ''}`;
     const body = document.createElement('div');
-    body.textContent = String(msg.content || '');
-    item.append(label, body);
+    if (msg.role === 'assistant') {
+      body.classList.add('hg-ai-message-content');
+      body.innerHTML = markdownToHtml(String(msg.content || ''));
+      const copy = document.createElement('button');
+      copy.type = 'button';
+      copy.className = 'hg-ai-button hg-ai-copy';
+      copy.textContent = 'کپی پاسخ';
+      copy.setAttribute('aria-label', 'کپی متن پاسخ دستیار');
+      copy.addEventListener('click', async () => {
+        const value = String(msg.content || '');
+        try {
+          if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(value);
+          } else {
+            const area = document.createElement('textarea');
+            area.value = value; area.setAttribute('readonly', '');
+            area.style.position = 'fixed'; area.style.opacity = '0';
+            document.body.append(area); area.select();
+            const copied = document.execCommand('copy'); area.remove();
+            if (!copied) throw new Error('clipboard-unavailable');
+          }
+          setStatus('متن پاسخ کپی شد.');
+        } catch { setStatus('کپی خودکار در این مرورگر در دسترس نیست؛ متن پاسخ را دستی انتخاب کن.', 'error'); }
+      });
+      item.append(label, body, copy);
+    } else {
+      body.textContent = String(msg.content || '');
+      item.append(label, body);
+    }
     list.append(item);
   }
   list.scrollTop = list.scrollHeight;
