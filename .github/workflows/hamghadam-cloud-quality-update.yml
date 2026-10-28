@@ -6,11 +6,10 @@ on:
 
 permissions:
   contents: write
-  pull-requests: write
 
 jobs:
   verify-and-propose:
-    name: Apply update kit, test, build, and open a review PR
+    name: Apply update kit, test, build, and prepare PR
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -55,7 +54,7 @@ jobs:
           node "$KIT/scripts/apply-integration.mjs" "$GITHUB_WORKSPACE"
 
           echo "Integration updates applied."
-          echo "The existing public-chat delete function is intentionally preserved."
+          echo "Existing public-chat delete function preserved."
 
       - name: Normalize HTML line endings and trailing whitespace
         shell: bash
@@ -64,8 +63,7 @@ jobs:
           node --input-type=module <<'NODE'
           import fs from 'node:fs';
 
-          const paths = ['index.html'];
-          for (const path of paths) {
+          for (const path of ['index.html']) {
             let source = fs.readFileSync(path, 'utf8');
             source = source
               .replace(/\r\n?/g, '\n')
@@ -84,7 +82,7 @@ jobs:
           import fs from 'node:fs';
 
           const path = 'tests/public-chat-attachment-security.test.mjs';
-          let source = fs.readFileSync(path, 'utf8');
+          const source = fs.readFileSync(path, 'utf8');
 
           const desired =
             String.raw`  assert.match(client, /supabase\s*\.storage\s*\.from\(BUCKET\)\s*\.upload/);`;
@@ -118,7 +116,6 @@ jobs:
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
         run: |
           set -euo pipefail
-
           npm ci --no-audit --no-fund
           npm test
           npm run build
@@ -148,7 +145,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Push validated changes and open draft PR
+      - name: Push validated changes and provide PR link
         if: success()
         shell: bash
         env:
@@ -165,51 +162,29 @@ jobs:
           git add -A
 
           if git diff --cached --quiet; then
-            echo "No changes were produced; refusing to open an empty PR."
+            echo "No changes were produced; refusing to create an empty branch."
             exit 1
           fi
 
           git commit -m "Apply validated Hamghadam integration update"
 
           TOKEN_B64="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 -w0)"
-          git -c "http.extraheader=AUTHORIZATION: basic $TOKEN_B64" push origin "$BRANCH"
+          git -c "http.extraheader=AUTHORIZATION: basic $TOKEN_B64" \
+            push origin "$BRANCH"
 
-          BODY=$(cat <<'EOF'
-          این PR تغییرات افزایشی هم‌قدم را پس از اجرای تست‌ها و ساخت وب پیشنهاد می‌کند.
+          PR_URL="https://github.com/${GITHUB_REPOSITORY}/pull/new/${BRANCH}"
 
-          تابع فعلی حذف پیام عمومی عمداً حفظ شده است؛ اسکریپت اختیاری ناسازگار اجرا نشده است.
+          {
+            echo "## Validation successful"
+            echo
+            echo "Tests and build completed successfully."
+            echo
+            echo "## Create the review Pull Request"
+            echo
+            echo "$PR_URL"
+            echo
+            echo "The Pull Request must be created manually because repository Actions permissions may block automatic creation."
+          } >> "$GITHUB_STEP_SUMMARY"
 
-          توجه: migration احتمالی فقط در مخزن قرار می‌گیرد و روی Supabase زنده اجرا نمی‌شود. پیش از ادغام، تغییرات را بررسی کنید و از دیتابیس نسخه پشتیبان بگیرید.
-          EOF
-          )
-
-          PAYLOAD="$(jq -n \
-            --arg title 'هم‌قدم: به‌روزرسانی رابط و امنیت چت' \
-            --arg head "$BRANCH" \
-            --arg base 'main' \
-            --arg body "$BODY" \
-            '{title:$title,head:$head,base:$base,body:$body,draft:true}')"
-
-          HTTP_CODE="$(curl --silent --show-error \
-            --output "$RUNNER_TEMP/created-pr.json" \
-            --write-out '%{http_code}' \
-            --request POST \
-            --header "Authorization: Bearer $GITHUB_TOKEN" \
-            --header 'Accept: application/vnd.github+json' \
-            --header 'X-GitHub-Api-Version: 2022-11-28' \
-            --header 'Content-Type: application/json' \
-            --data "$PAYLOAD" \
-            "https://api.github.com/repos/$GITHUB_REPOSITORY/pulls")"
-
-          if [ "$HTTP_CODE" != "201" ]; then
-            cat "$RUNNER_TEMP/created-pr.json"
-            echo "Changes pushed, but creating the PR failed."
-            exit 1
-          fi
-
-          PR_URL="$(jq -r '.html_url' "$RUNNER_TEMP/created-pr.json")"
-
-          echo "### Draft Pull Request created" >> "$GITHUB_STEP_SUMMARY"
-          echo "$PR_URL" >> "$GITHUB_STEP_SUMMARY"
-          echo "### Review branch" >> "$GITHUB_STEP_SUMMARY"
-          echo "$BRANCH" >> "$GITHUB_STEP_SUMMARY"
+          echo "Validated changes pushed to: $BRANCH"
+          echo "Create the Pull Request here: $PR_URL"
