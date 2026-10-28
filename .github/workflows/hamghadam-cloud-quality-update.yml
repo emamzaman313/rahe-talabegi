@@ -57,6 +57,25 @@ jobs:
           echo "Integration updates applied."
           echo "The existing public-chat delete function is intentionally preserved."
 
+      - name: Normalize HTML line endings and trailing whitespace
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+
+          const paths = ['index.html'];
+          for (const path of paths) {
+            let source = fs.readFileSync(path, 'utf8');
+            source = source
+              .replace(/\r\n?/g, '\n')
+              .split('\n')
+              .map(line => line.replace(/[ \t]+$/g, ''))
+              .join('\n');
+            fs.writeFileSync(path, source, 'utf8');
+          }
+          NODE
+
       - name: Correct multiline upload assertion
         shell: bash
         run: |
