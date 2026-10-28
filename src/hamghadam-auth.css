@@ -12,3 +12,44 @@ html.hg-auth-checking body>.app{visibility:hidden!important}html.hg-auth-checkin
 @media(max-width:800px){#hg-auth-gate{padding:18px;place-items:start center}.hg-shell{grid-template-columns:1fr;max-width:530px;gap:22px}.hg-story{padding:4px}.hg-brand{margin-bottom:20px}.hg-story h1{font-size:36px;margin-top:14px}.hg-story>p{font-size:12px;margin-bottom:14px}.hg-mountain{max-height:115px;margin:0 0 10px}.hg-benefits{gap:8px}.hg-benefit{padding:10px}.hg-benefit i{margin-bottom:5px}.hg-auth-card{padding:22px;border-radius:22px}.hg-card-top{margin-bottom:17px}}
 @media(max-width:410px){#hg-auth-gate{padding:10px}.hg-story h1{font-size:31px}.hg-benefits{grid-template-columns:1fr 1fr}.hg-benefit span{font-size:9px}.hg-auth-card{padding:17px}.hg-brandname{font-size:21px}}
 @media(prefers-reduced-motion:reduce){.hg-submit,.hg-field input{transition:none!important}.hg-submit:hover{transform:none}}
+
+/* Mobile horizontal overflow fix */
+html, body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+#hg-auth-gate {
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: clip;
+  overscroll-behavior-x: none;
+}
+#hg-auth-gate *,
+#hg-auth-gate *::before,
+#hg-auth-gate *::after {
+  min-width: 0;
+}
+.hg-shell {
+  width: min(1120px, 100%);
+  max-width: 100%;
+}
+@media (max-width: 800px) {
+  #hg-auth-gate {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .hg-shell,
+  .hg-auth-card {
+    width: 100%;
+    box-sizing: border-box;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #hg-auth-gate *,
+  #hg-auth-gate *::before,
+  #hg-auth-gate *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
