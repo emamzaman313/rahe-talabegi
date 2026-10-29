@@ -27,7 +27,8 @@ test('Android copy retains complete program modules and Rahdan embedding', () =>
   assert.match(nativeHtml, /const RAHDAN_B64=/);
   const encoded = nativeHtml.match(/const RAHDAN_B64='([A-Za-z0-9+/=]+)'/);
   assert.ok(encoded, 'embedded Rahdan base64 must exist');
-  assert.deepEqual(Buffer.from(encoded[1], 'base64'), rahdan, 'embedded Rahdan file must remain byte-identical');
+  const normalizedRahdan = Buffer.from(rahdan.toString('utf8').replace(/\r\n?/g, '\n'), 'utf8');
+  assert.deepEqual(Buffer.from(encoded[1], 'base64'), normalizedRahdan, 'embedded Rahdan file must match the source independent of checkout line endings');
 });
 
 test('backup validator accepts an exported-shaped backup and rejects malformed data', () => {
