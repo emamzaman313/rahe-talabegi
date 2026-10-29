@@ -17,6 +17,9 @@ const AUTH_DEADLINE_MS = 20000;
 let user = null;
 let profile = null;
 let mode = 'login';
+let pendingEmail = '';
+let pendingName = '';
+let pendingMode = 'login';
 let busy = false;
 let notice = '';
 let noticeType = 'info';
@@ -24,6 +27,7 @@ let lastHydratedUserId = null;
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch]);
+const normalizeOtp = (value) => String(value ?? '').replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 1776)).replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632)).trim();
 
 function withDeadline(promise, operation, timeoutMs = AUTH_DEADLINE_MS) {
   let timer;
@@ -79,17 +83,19 @@ function renderGate() {
     signup: ['از همین قدم شروع کن', 'یک حساب بساز تا مسیرت بین دستگاه‌ها ادامه پیدا کند.', 'ساخت حساب'],
     reset: ['بازیابی رمز عبور', 'نشانی ایمیلت را بنویس تا راهنمای بازیابی ارسال شود.', 'ارسال راهنمای بازیابی'],
     update: ['رمز تازه انتخاب کن', 'رمز عبور جدیدی برای حساب خودت ثبت کن.', 'ثبت رمز تازه'],
+    verify: ['ایمیلت را تأیید کن', `اگر ایمیل کد شش‌رقمی دارد، آن را وارد کن؛ اگر پیوند دارد، روی آن بزن تا به برنامه برگردی.`, 'تأیید و ورود'],
   };
   const [title, subtitle, submit] = titles[mode] || titles.login;
-  const showPassword = mode !== 'reset';
+  const showPassword = mode === 'update';
   const passwordLabel = mode === 'update' ? 'رمز عبور تازه' : 'رمز عبور';
   const form = isSupabaseConfigured ? `<form class="hg-form" id="hg-auth-form" novalidate>
     ${mode === 'signup' ? `<div class="hg-field"><label for="hg-name">نام نمایشی (اختیاری)</label><input id="hg-name" name="display_name" type="text" maxlength="60" autocomplete="nickname" placeholder="مثلاً علی"></div>` : ''}
-    ${mode !== 'update' ? `<div class="hg-field"><label for="hg-email">ایمیل</label><input id="hg-email" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com" dir="ltr"></div>` : ''}
+    ${mode !== 'update' && mode !== 'verify' ? `<div class="hg-field"><label for="hg-email">ایمیل</label><input id="hg-email" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com" dir="ltr"></div>` : ''}
+    ${mode === 'verify' ? `<input type="hidden" name="email" value="${escape(pendingEmail)}"><div class="hg-field"><label for="hg-code">کد تأیید شش‌رقمی</label><input id="hg-code" name="token" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9٠-٩۰-۹]{6}" minlength="6" maxlength="6" required dir="ltr" placeholder="123456"></div>` : ''}
     ${showPassword ? `<div class="hg-field"><label for="hg-password">${passwordLabel}</label><input id="hg-password" name="password" type="password" autocomplete="${mode === 'update' ? 'new-password' : mode === 'signup' ? 'new-password' : 'current-password'}" minlength="8" maxlength="128" required placeholder="حداقل ۸ نویسه" dir="ltr"></div>` : ''}
     ${notice ? `<div class="hg-alert ${escape(noticeType)}" role="status" aria-live="polite">${escape(notice)}</div>` : ''}
     <button class="hg-submit" type="submit" ${busy ? 'disabled' : ''}><span>${busy ? 'در حال انجام…' : submit}</span><span aria-hidden="true">↙</span></button>
-    <div class="hg-form-row">${mode !== 'login' && mode !== 'update' ? `<button class="hg-link" type="button" data-hg-mode="login">بازگشت به ورود</button>` : ''}${mode === 'login' ? `<button class="hg-link" type="button" data-hg-mode="reset">رمز را فراموش کرده‌ام</button><button class="hg-link" type="button" data-hg-mode="signup">حساب ندارم؛ ثبت‌نام</button>` : mode === 'signup' ? `<button class="hg-link" type="button" data-hg-mode="login">حساب دارم؛ ورود</button>` : mode === 'update' ? `<button class="hg-link" type="button" data-hg-mode="login">لغو</button>` : ''}</div>
+    <div class="hg-form-row">${mode === 'login' ? `<button class="hg-link" type="button" data-hg-mode="signup">حساب ندارم؛ ثبت‌نام</button>` : mode === 'signup' ? `<button class="hg-link" type="button" data-hg-mode="login">حساب دارم؛ ورود</button>` : mode === 'verify' ? `<button class="hg-link" type="button" data-hg-action="resend-code">ارسال دوبارهٔ کد</button><button class="hg-link" type="button" data-hg-mode="${escape(pendingMode || 'login')}">تغییر ایمیل</button>` : mode === 'update' ? `<button class="hg-link" type="button" data-hg-mode="login">لغو</button>` : `<button class="hg-link" type="button" data-hg-mode="login">بازگشت به ورود</button>`}</div>
   </form>` : `<div class="hg-alert warn" role="status">اتصال امن هنوز در تنظیمات ساخت وب/اندروید تعریف نشده است. تا زمان تنظیم نشانی پروژه و کلید عمومی Supabase، ورود فعال نمی‌شود.</div><ol class="hg-setup-list"><li>نشانی پروژه را با متغیر <code>VITE_SUPABASE_URL</code> تنظیم کن.</li><li>کلید عمومی را با متغیر <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> تنظیم کن.</li><li>برنامه را دوباره build کن. کلید secret یا <code>service_role</code> را هرگز داخل اپ قرار نده.</li></ol>`;
 
   return `<div class="hg-shell"><section class="hg-story" aria-label="معرفی هم‌قدم">
@@ -102,7 +108,7 @@ function renderGate() {
   </section><section class="hg-auth-card" aria-labelledby="hg-auth-title">
     <div class="hg-card-top"><div><h2 id="hg-auth-title">${title}</h2><p>${subtitle}</p></div><div class="hg-card-emblem" aria-hidden="true">✧</div></div>
     ${form}
-    <div class="hg-card-bottom">با ورود، از همان حساب برای پیام‌های پشتیبانی استفاده می‌کنی. تأیید ایمیل و بازیابی رمز مطابق تنظیمات واقعی سرویس انجام می‌شود؛ هیچ تأیید ساختگی یا ورود مهمان وجود ندارد.</div>
+    <div class="hg-card-bottom">ایمیل تأیید حاوی کد یا پیوند ورود است؛ حساب تنها پس از تأیید مالکیت ایمیل وارد برنامه می‌شود.</div>
     <div class="hg-privacy"><span>◈</span><div>پروفایل پایه به سرور همگام می‌شود. داده‌های قدیمی برنامه‌ریز که هنوز منتقل نشده‌اند، روی همین دستگاه باقی می‌مانند؛ این مرحله آن‌ها را خودکار آپلود نمی‌کند.</div></div>
   </section></div>`;
 }
@@ -225,27 +231,32 @@ async function handleSubmit(form) {
   const email = String(data.get('email') || '').trim().toLowerCase();
   const password = String(data.get('password') || '');
   const name = normalizeDisplayName(data.get('display_name'), '');
-  if (mode !== 'update' && mode !== 'reset' && !email) return setNotice('ایمیل را وارد کن.', 'error');
-  if ((mode === 'login' || mode === 'signup' || mode === 'update') && password.length < 8) return setNotice('رمز عبور باید دست‌کم ۸ نویسه داشته باشد.', 'error');
+  const token = normalizeOtp(data.get('token'));
+  if (mode === 'verify' && !/^\d{6}$/.test(token)) return setNotice('کد باید دقیقاً شش رقم باشد.', 'error');
+  if (mode !== 'update' && mode !== 'verify' && !email) return setNotice('ایمیل را وارد کن.', 'error');
+  if (mode === 'update' && password.length < 8) return setNotice('رمز عبور باید دست‌کم ۸ نویسه داشته باشد.', 'error');
   busy = true;
   notice = '';
   renderGateIntoRoot();
   try {
     if (mode === 'signup') {
-      const { data: response, error } = await withDeadline(
-        supabase.auth.signUp({ email, password, options: { data: { display_name: name } }}),
-        'ثبت‌نام'
-      );
+      pendingEmail = email; pendingName = name; pendingMode = 'signup';
+      const emailRedirectTo = `${location.origin}${location.pathname}`;
+      const { error } = await withDeadline(supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo, data: { display_name: name } } }), 'ارسال ایمیل تأیید');
       if (error) throw error;
-      if (response.session) await acceptSession(response.session);
-      else setNotice('ثبت‌نام انجام شد. اگر تأیید ایمیل فعال است، ایمیل را تأیید کن و سپس وارد شو.', 'info');
+      mode = 'verify'; setNotice('ایمیل تأیید فرستاده شد. اگر کد می‌بینی، آن را وارد کن؛ اگر پیوند می‌بینی، روی آن بزن تا وارد شوی.', 'info');
     } else if (mode === 'login') {
-      const { data: response, error } = await withDeadline(
-        supabase.auth.signInWithPassword({ email, password }),
-        'ورود'
-      );
+      pendingEmail = email; pendingName = ''; pendingMode = 'login';
+      const emailRedirectTo = `${location.origin}${location.pathname}`;
+      const { error } = await withDeadline(supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo } }), 'ارسال ایمیل ورود');
       if (error) throw error;
+      mode = 'verify'; setNotice('اگر این ایمیل به حسابی متصل باشد، ایمیل ورود فرستاده شده است. کد را وارد کن یا روی پیوند ایمیل بزن.', 'info');
+    } else if (mode === 'verify') {
+      const { data: response, error } = await withDeadline(supabase.auth.verifyOtp({ email: pendingEmail, token, type: 'email' }), 'تأیید کد');
+      if (error) throw error;
+      if (!response.session) throw new Error('کد تأیید شد اما نشست ورود دریافت نشد. دوباره درخواست کد بده.');
       await acceptSession(response.session);
+      pendingEmail = ''; pendingName = '';
     } else if (mode === 'reset') {
       const redirectTo = `${location.origin}${location.pathname}`;
       const { error } = await withDeadline(
@@ -269,7 +280,7 @@ async function handleSubmit(form) {
       ? 'پاسخ سرور به‌موقع نرسید. اتصال اینترنت را بررسی کن و دوباره تلاش کن.'
       : /failed to fetch|network|fetch|abort/i.test(message)
         ? 'ارتباط با سرور برقرار نشد. اینترنت را بررسی کن و دوباره تلاش کن.'
-        : /invalid login credentials/i.test(message) ? 'ایمیل یا رمز عبور درست نیست.'
+        : /invalid login credentials|invalid token|token has expired/i.test(message) ? 'کد نادرست یا منقضی شده است. کد تازه درخواست کن.'
         : /email not confirmed/i.test(message) ? 'ایمیل هنوز تأیید نشده است؛ صندوق ایمیلت را بررسی کن.'
         : /user already registered/i.test(message) ? 'این ایمیل قبلاً ثبت شده است؛ وارد حساب شو.'
         : `عملیات انجام نشد: ${message}`;
@@ -359,6 +370,13 @@ function mount() {
     const action = event.target.closest('[data-hg-action]')?.dataset.hgAction;
     if (action === 'profile') void editProfile();
     else if (action === 'logout') void logout();
+    else if (action === 'resend-code' && mode === 'verify' && pendingEmail) {
+      busy = true; setNotice('در حال ارسال دوباره…');
+      void supabase.auth.signInWithOtp({ email: pendingEmail, options: { shouldCreateUser: pendingMode === 'signup', emailRedirectTo: `${location.origin}${location.pathname}`, ...(pendingName ? { data: { display_name: pendingName } } : {}) } })
+        .then(({ error }) => { if (error) throw error; setNotice('ایمیل تازه ارسال شد.', 'info'); })
+        .catch((error) => setNotice(`ارسال کد ناموفق بود: ${error?.message || 'خطای شبکه'}`, 'error'))
+        .finally(() => { busy = false; renderGateIntoRoot(); });
+    }
   });
   document.addEventListener('submit', (event) => {
     if (event.target?.id === 'hg-auth-form') { event.preventDefault(); void handleSubmit(event.target); }
@@ -397,3 +415,4 @@ function mount() {
 }
 
 mount();
+

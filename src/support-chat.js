@@ -16,6 +16,8 @@ let authReady = false;
 let busy = false;
 let startFresh = false;
 let notice = '';
+let authStep = 'request';
+let authPendingEmail = '';
 let realtimeChannel = null;
 let refreshSerial = 0;
 let clearDraftOnNextRender = false;
@@ -23,6 +25,7 @@ let clearDraftOnNextRender = false;
 const $ = (selector, root = activeRoot) => root?.querySelector(selector) || null;
 const statusMarkup = (text, type = 'info') => text ? `<div class="rt-support-alert ${type}" role="status">${escapeHtml(text)}</div>` : '';
 const userIsSupport = () => isSupportAgent(currentUser);
+const normalizeOtp = (value) => String(value ?? '').replace(/[۰-۹]/g, (digit) => String(digit.charCodeAt(0) - 1776)).replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 1632)).trim();
 
 function renderMessages(items) {
   if (!items.length) return '<div class="rt-support-empty"><span>✦</span><b>شروع یک گفت‌وگوی آرام و روشن</b><p>پیام را بنویس؛ پاسخ پشتیبانی در همین بخش نمایش داده می‌شود.</p></div>';
@@ -38,7 +41,7 @@ function renderSetup() {
 }
 
 function renderAuth() {
-  return `<section class="rt-support-auth"><div class="rt-support-heading"><div class="rt-support-icon">🔐</div><div><h3>ورود به پشتیبانی</h3><p>برای نگه‌داری خصوصی گفتگو باید وارد حساب کاربری شوی.</p></div></div>${statusMarkup(notice, notice.toLowerCase().includes('خطا') || notice.toLowerCase().includes('ناموفق') ? 'error' : 'info')}<form id="rtSupportAuthForm" class="rt-support-form"><label>ایمیل<input name="email" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"></label><label>رمز عبور<input name="password" type="password" autocomplete="current-password" minlength="8" maxlength="128" placeholder="حداقل ۸ نویسه"></label><div class="rt-support-actions"><button class="rt-support-primary" type="submit" data-mode="login" ${busy ? 'disabled' : ''}>ورود</button><button class="rt-support-secondary" type="submit" data-mode="signup" ${busy ? 'disabled' : ''}>ساخت حساب</button></div><button class="rt-support-textbutton" type="submit" data-mode="reset" ${busy ? 'disabled' : ''}>فراموشی رمز عبور</button></form><p class="rt-support-small">اطلاعات ورود را فقط در فرم رسمی برنامه وارد کن؛ تیم پشتیبانی هرگز رمز عبورت را درخواست نمی‌کند.</p></section>`;
+  return `<section class="rt-support-auth"><div class="rt-support-heading"><div class="rt-support-icon">🔐</div><div><h3>${authStep === 'verify' ? 'تأیید ایمیل' : 'ورود به پشتیبانی'}</h3><p>${authStep === 'verify' ? `ایمیل ${escapeHtml(authPendingEmail)} را بررسی کن؛ کد را وارد کن یا روی پیوندش بزن تا به برنامه برگردی.` : 'برای نگه‌داری خصوصی گفتگو باید وارد حساب کاربری شوی.'}</p></div></div>${statusMarkup(notice, notice.toLowerCase().includes('خطا') || notice.toLowerCase().includes('ناموفق') ? 'error' : 'info')}<form id="rtSupportAuthForm" class="rt-support-form">${authStep === 'verify' ? `<input type="hidden" name="email" value="${escapeHtml(authPendingEmail)}"><label>کد تأیید<input name="token" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9٠-٩۰-۹]{6}" minlength="6" maxlength="6" required dir="ltr" placeholder="123456"></label><div class="rt-support-actions"><button class="rt-support-primary" type="submit" data-mode="verify" ${busy ? 'disabled' : ''}>تأیید و ادامه</button><button class="rt-support-secondary" type="submit" data-mode="resend" ${busy ? 'disabled' : ''}>ارسال دوباره</button></div><button class="rt-support-textbutton" type="submit" data-mode="change" ${busy ? 'disabled' : ''}>تغییر ایمیل</button>` : `<label>ایمیل<input name="email" type="email" autocomplete="email" required maxlength="254" placeholder="you@example.com"></label><div class="rt-support-actions"><button class="rt-support-primary" type="submit" data-mode="login" ${busy ? 'disabled' : ''}>ارسال ایمیل ورود</button><button class="rt-support-secondary" type="submit" data-mode="signup" ${busy ? 'disabled' : ''}>ساخت حساب</button></div>`}</form><p class="rt-support-small">ورود فقط پس از تأیید ایمیل انجام می‌شود؛ رمز عبور از تو درخواست نمی‌شود.</p></section>`;
 }
 
 function renderConversationList() {
@@ -204,29 +207,26 @@ async function handleAuth(form, mode) {
   if (!db || busy) return;
   const formData = new FormData(form);
   const email = String(formData.get('email') || '').trim();
-  const password = String(formData.get('password') || '');
-  if (!email) { notice = 'ایمیل را وارد کن.'; renderSurface(); return; }
+  const token = normalizeOtp(formData.get('token'));
+  if (mode === 'change') { authStep = 'request'; authPendingEmail = ''; notice = ''; renderSurface(); return; }
+  if (mode === 'verify' && !/^\d{6}$/.test(token)) { notice = 'کد باید دقیقاً شش رقم باشد.'; renderSurface(); return; }
+  if (mode !== 'verify' && mode !== 'resend' && !email) { notice = 'ایمیل را وارد کن.'; renderSurface(); return; }
   busy = true;
   notice = '';
   renderSurface();
   try {
-    if (mode === 'signup') {
-      if (password.length < 8) throw new Error('رمز عبور باید دست‌کم ۸ نویسه داشته باشد.');
-      const { data, error } = await db.auth.signUp({ email, password });
+    if (mode === 'signup' || mode === 'login' || mode === 'resend') {
+      const targetEmail = mode === 'resend' ? authPendingEmail : email.trim().toLowerCase();
+      if (!targetEmail) throw new Error('ایمیل را وارد کن.');
+      const { error } = await db.auth.signInWithOtp({ email: targetEmail, options: { shouldCreateUser: mode === 'signup', emailRedirectTo: `${location.origin}${location.pathname}` } });
       if (error) throw error;
-      if (!data.session) notice = 'حساب ثبت شد. اگر تأیید ایمیل فعال است، صندوق ایمیلت را بررسی کن و سپس وارد شو.';
-      else { currentUser = data.user; authReady = true; await refreshData(); }
-    } else if (mode === 'reset') {
-      const { error } = await db.auth.resetPasswordForEmail(email);
+      authPendingEmail = targetEmail; authStep = 'verify';
+      notice = mode === 'login' ? 'اگر این ایمیل حساب داشته باشد، ایمیل ورود ارسال شده است؛ کد را وارد کن یا روی پیوندش بزن.' : 'ایمیل تأیید ارسال شد؛ کد را وارد کن یا روی پیوندش بزن.';
+    } else if (mode === 'verify') {
+      const { data, error } = await db.auth.verifyOtp({ email: authPendingEmail, token, type: 'email' });
       if (error) throw error;
-      notice = 'اگر این ایمیل به حسابی متصل باشد، راهنمای بازیابی ارسال می‌شود.';
-    } else {
-      const { data, error } = await db.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      currentUser = data.user;
-      authReady = true;
-      setupRealtime();
-      await refreshData();
+      currentUser = data.user; authReady = true; authStep = 'request'; authPendingEmail = '';
+      setupRealtime(); await refreshData();
     }
   } catch (error) {
     notice = `خطا: ${error?.message || 'عملیات ورود ناموفق بود.'}`;
@@ -344,3 +344,4 @@ document.addEventListener('change', (event) => {
 // The standalone support inbox entry point has a static root. The app's support root is created on navigation.
 const initialRoot = document.querySelector('#rt-support-root, #support-chat-root');
 if (initialRoot) void mountRoot(initialRoot);
+
