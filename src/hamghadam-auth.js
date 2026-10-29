@@ -20,6 +20,7 @@ let mode = 'login';
 let pendingEmail = '';
 let pendingName = '';
 let pendingMode = 'login';
+let deferSignInHydration = false;
 let busy = false;
 let notice = '';
 let noticeType = 'info';
@@ -249,13 +250,12 @@ async function handleSubmit(form) {
       if (error) throw error;
       mode = 'verify'; setNotice('ایمیل تأیید فرستاده شد. اگر کد می‌بینی، آن را وارد کن؛ اگر پیوند می‌بینی، روی آن بزن تا وارد شوی.', 'info');
     } else if (mode === 'login') {
-      const { error } = await withDeadline(supabase.auth.signInWithPassword({ email, password }), 'ورود به حساب');
+      const { data: loginData, error } = await withDeadline(supabase.auth.signInWithPassword({ email, password }), 'ورود به حساب');
       if (error) throw error;
-      const { data: sessionData, error: sessionError } = await withDeadline(supabase.auth.getSession(), 'دریافت نشست ورود');
-      if (sessionError) throw sessionError;
-      await acceptSession(sessionData?.session);
+      await acceptSession(loginData?.session);
     } else if (mode === 'verify') {
       const recoveryCode = pendingMode === 'recovery';
+      deferSignInHydration = pendingMode === 'signup';
       const verification = recoveryCode
         ? supabase.auth.verifyOtp({ email: pendingEmail, token, type: 'recovery' })
         : supabase.auth.verifyOtp({ email: pendingEmail, token, type: 'email' });
@@ -299,12 +299,14 @@ async function handleSubmit(form) {
         if (sessionError) throw sessionError;
         await acceptSession(sessionData?.session);
         pendingEmail = ''; pendingName = ''; pendingMode = 'login';
+        deferSignInHydration = false;
       } else {
         setMode('login');
         setNotice('رمز عبور تغییر کرد. اکنون می‌توانی با ایمیل و رمز وارد شوی.', 'info');
       }
     }
   } catch (error) {
+    if (mode === 'verify') deferSignInHydration = false;
     const message = String(error?.message || 'عملیات ناموفق بود.');
     const friendly = error?.name === 'TimeoutError' || /timed out|timeout|deadline/i.test(message)
       ? 'پاسخ سرور به‌موقع نرسید. اتصال اینترنت را بررسی کن و دوباره تلاش کن.'
@@ -426,6 +428,8 @@ function mount() {
   }, true);
 
   supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_IN' && deferSignInHydration) return;
+    if (event === 'USER_UPDATED') deferSignInHydration = false;
     if (event === 'PASSWORD_RECOVERY') {
       mode = 'update'; notice = 'برای ادامه، رمز عبور تازه را ثبت کن.'; noticeType = 'info';
       setGateOpen(true); renderGateIntoRoot(); return;
