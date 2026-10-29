@@ -5,10 +5,10 @@ import path from 'node:path';
 
 const root = process.cwd();
 const ui = fs.readFileSync(path.join(root, 'src/public-chat-moderation.js'), 'utf8');
-const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261029140000_public_chat_moderation_and_reports.sql'), 'utf8');
-const actionsMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261029160000_public_chat_moderation_actions.sql'), 'utf8');
-const groupCapacityMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261029170000_discussion_group_capacity_guard.sql'), 'utf8');
-const targetGuardMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261029180000_public_chat_moderation_target_guard.sql'), 'utf8');
+const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261029185329_public_chat_moderation_and_reports_repair.sql'), 'utf8');
+const actionsMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261029185331_public_chat_moderation_actions_repair.sql'), 'utf8');
+const groupCapacityMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261029185333_discussion_group_capacity_guard_repair.sql'), 'utf8');
+const targetGuardMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261029185335_public_chat_moderation_target_guard_repair.sql'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const publicChat = fs.readFileSync(path.join(root, 'src/public-chat.js'), 'utf8');
 
@@ -101,3 +101,4 @@ test('moderation target guard protects self, admins and moderators; reports cann
   assert.doesNotMatch(targetGuardMigration, /auth\.jwt\(\) -> 'user_metadata'/i);
   assert.doesNotMatch(targetGuardMigration, /\b(drop\s+table|truncate\s+table|delete\s+from)\b/i);
 });
+
