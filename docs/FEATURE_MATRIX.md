@@ -21,5 +21,5 @@
 | اعلان درون‌برنامه‌ای | زیرساخت موجود | ماژول مجموعه | `in_app_notifications`, RLS | دادهٔ زنده فعلاً بدون رکورد؛ push در این دور تأیید نشده |
 | ایمیل‌های سیستمی | نیازمند تنظیم provider | Supabase Auth/support | provider و DNS خارج از کد | ارسال واقعی، SPF/DKIM/DMARC و ترجیحات ایمیل تأیید نشده |
 | OCR | تأییدنشده | پیوست تصویر هست | موتور OCR واقعی در این دور اثبات نشد | نباید قابلیت OCR فعال اعلام شود |
-| انتشار وب | منتشرشده روی main قبلی | GitHub Pages workflow | `static.yml` | سایت زنده پاسخ 200 می‌دهد؛ patch branch هنوز روی Pages منتشر نشده |
-| انتشار APK | فایل قبلی موجود؛ APK جدید در انتظار CI | workflowهای Android | Release با tag `android-latest` | نسخهٔ موجود ۲۴ اکتبر است؛ build جدید پس از ادغام main لازم است |
+| انتشار وب | منتشرشده | GitHub Pages workflow | `static.yml` | deploy commit `1ac4071` موفق؛ سایت زنده پاسخ 200 می‌دهد |
+| انتشار APK | ساخته و منتشرشده؛ debug-signed | workflowهای Android | Release با tag `android-latest` | CI ساخت، apksigner، package id و SDK را تأیید کرد؛ امضای انتشار Play Store نیست |
