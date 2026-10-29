@@ -22,7 +22,7 @@ const errText = (e) => {
 const state = {
   user: null, session: null, prefs: null, occasions: [], activeOccasion: null,
   features: {}, tab: 'themes', topicId: null, chatId: null, replyId: null,
-  topics: [], posts: [], chats: [], messages: [], chatUserResults: [], book: null, notes: [], flashcards: [], quizzes: [],
+  topics: [], posts: [], chats: [], messages: [], chatUserResults: [], book: null, notes: [], flashcards: [], quizzes: [], globalAudio: null, searchRequest: 0,
   chatChannel: null, busy: false, origin: null,
 };
 
@@ -103,19 +103,22 @@ async function loadSession() {
 
 async function loadUserBootstrap() {
   if (!supabase || !state.user) return;
-  const [{data:settings,error:settingsErr},{data:prefs,error:prefsErr},{data:occasions,error:occasionsErr}] = await Promise.all([
+  const [{data:settings,error:settingsErr},{data:prefs,error:prefsErr},{data:occasions,error:occasionsErr},{data:audioSetting,error:audioErr}] = await Promise.all([
     supabase.from('app_settings').select('setting_value').eq('setting_key','features').maybeSingle(),
     supabase.from('user_preferences').select('*').eq('user_id',state.user.id).maybeSingle(),
     supabase.from('occasion_themes').select('*').eq('enabled',true).lte('starts_at',new Date().toISOString()).gt('ends_at',new Date().toISOString()).order('priority',{ascending:false}).limit(10),
+    supabase.from('app_settings').select('setting_value').eq('setting_key','global_audio').maybeSingle(),
   ]);
   if (settingsErr && !/does not exist|schema cache/i.test(settingsErr.message || '')) throw settingsErr;
   if (prefsErr && !/does not exist|schema cache/i.test(prefsErr.message || '')) throw prefsErr;
   if (occasionsErr && !/does not exist|schema cache/i.test(occasionsErr.message || '')) throw occasionsErr;
+  if (audioErr && !/does not exist|schema cache/i.test(audioErr.message || '')) throw audioErr;
   state.features=settings?.setting_value || {};
   state.prefs=prefs || null;
   state.occasions=occasions || [];
   state.activeOccasion=state.prefs?.disable_occasion_themes ? null : selectActiveOccasion(state.occasions);
-  applyPreferences(); applyOccasionBanner();
+  state.globalAudio=audioSetting?.setting_value || null;
+  applyPreferences(); applyOccasionBanner(); applyGlobalAudio();
   $('#hgd-connection')?.replaceChildren(document.createTextNode('متصل به Supabase · '+(state.user.email || 'حساب واردشده')));
 }
 
@@ -139,6 +142,13 @@ function applyOccasionBanner() {
   rootStyle.setProperty('--hgd-accent', '#17766a');
   rootStyle.setProperty('--hgd-occasion-bg', '#f2f6f0');
   const o = state.activeOccasion;
+  const palette = o?.occasion_type === 'birth'
+    ? { '--teal':'#713b88','--teal2':'#b64f8d','--mint':'#f8e0ee','--bg':'#fff7e8','--paper':'#fffdf6','--navy':'#473257','--gold':'#e4a83f' }
+    : o?.occasion_type === 'martyrdom'
+      ? { '--teal':'#64242e','--teal2':'#953745','--mint':'#f1e2e3','--bg':'#f3eeee','--paper':'#fffafa','--navy':'#392d31','--gold':'#b59a74' }
+      : null;
+  for (const key of ['--teal','--teal2','--mint','--bg','--paper','--navy','--gold']) rootStyle.removeProperty(key);
+  if (palette) for (const [key,value] of Object.entries(palette)) rootStyle.setProperty(key,value);
   if (!o || !isSafeTheme(o)) return;
   rootStyle.setProperty('--hgd-accent', o.accent_color);
   rootStyle.setProperty('--hgd-occasion-bg', o.background_color);
@@ -150,6 +160,16 @@ function applyOccasionBanner() {
   $('#hgd-theme-control',b)?.addEventListener('click',()=>void openSuite('themes'));
 }
 function isSafeTheme(o) { const color = (v) => /^#[0-9a-f]{6}$/i.test(String(v||'')); return color(o.accent_color) && color(o.background_color); }
+function applyGlobalAudio() {
+  const previous=$('#hgd-global-audio-dock');previous?.remove();
+  const setting=state.globalAudio;
+  if(!setting?.enabled||!setting?.path||!supabase)return;
+  const url=supabase.storage.from('hamghadam-global-audio').getPublicUrl(setting.path).data.publicUrl;
+  const dock=document.createElement('aside');dock.id='hgd-global-audio-dock';dock.className='hgd-global-audio-dock';dock.dir='rtl';
+  const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.src=url;audio.setAttribute('aria-label','موسیقی سراسری هم‌قدم');
+  const label=document.createElement('span');label.textContent=setting.title||'موسیقی هم‌قدم';
+  dock.append(label,audio);document.body.append(dock);
+}
 
 async function openSuite(tab = 'themes') {
   const root = getRoot(); root.classList.add('hgd-open'); document.body.style.overflow='hidden';
@@ -194,7 +214,7 @@ async function renderThemes(root) {
     ${state.activeOccasion?`<div class="hgd-occasion-banner" style="--hgd-accent:${escapeHtml(state.activeOccasion.accent_color)};--hgd-occasion-bg:${escapeHtml(state.activeOccasion.background_color)}"><h3>${state.activeOccasion.occasion_type==='birth'?'🌙 تم ولادت':state.activeOccasion.occasion_type==='martyrdom'?'🕯 تم شهادت':'✦ تم مناسبتی'}: ${escapeHtml(state.activeOccasion.title)}</h3><p>${escapeHtml(state.activeOccasion.description||'این تم در بازهٔ زمانی تعیین‌شده فعال شده است.')}</p>${state.prefs?.sound_enabled&&state.activeOccasion.sound_key&&state.activeOccasion.sound_key!=='none'?button('پخش نمونهٔ صوتی','preview-occasion-sound',`data-sound="${escapeHtml(state.activeOccasion.sound_key)}"`,'soft'):''}</div><div style="height:10px"></div>`:alertMarkup('در حال حاضر مناسبت فعالی برای این حساب تنظیم نشده است. تاریخ‌های دقیق را مدیر برنامه در پنل مدیریت ثبت می‌کند.','warn')}
     <div class="hgd-grid two"><section class="hgd-card"><h4>ظاهر برنامه</h4><form class="hgd-form" data-hgd-form="save-preferences">
       <div class="hgd-field"><label for="hgd-color_mode">حالت رنگ</label><select name="color_mode" id="hgd-color_mode"><option value="system" ${state.prefs?.color_mode==='system'?'selected':''}>مطابق دستگاه</option><option value="light" ${state.prefs?.color_mode==='light'?'selected':''}>روشن</option><option value="dark" ${state.prefs?.color_mode==='dark'?'selected':''}>تیره</option></select></div>
-      <label class="hgd-option"><input type="checkbox" name="disable_occasion_themes" ${state.prefs?.disable_occasion_themes?'checked':''}> تم‌های مناسبتی را خاموش کن</label>
+      <label class="hgd-option"><input type="checkbox" name="disable_occasion_themes" ${state.prefs?.disable_occasion_themes?'checked':''}> تم مناسبتی را فقط برای این حساب پنهان کن</label>
       <label class="hgd-option"><input type="checkbox" name="reduce_motion" ${state.prefs?.reduce_motion?'checked':''}> کاهش حرکت و افکت‌های دیداری</label>
       <label class="hgd-option"><input type="checkbox" name="sound_enabled" ${state.prefs?.sound_enabled?'checked':''}> اجازهٔ صدای اختیاری (بدون پخش خودکار)</label>
       <div class="hgd-field"><label for="hgd-font_scale">اندازهٔ متن</label><select name="font_scale" id="hgd-font_scale"><option value="0.9" ${Number(state.prefs?.font_scale)===0.9?'selected':''}>کوچک‌تر</option><option value="1" ${!state.prefs||Number(state.prefs.font_scale)===1?'selected':''}>معمولی</option><option value="1.1" ${Number(state.prefs?.font_scale)===1.1?'selected':''}>بزرگ‌تر</option><option value="1.2" ${Number(state.prefs?.font_scale)===1.2?'selected':''}>خیلی بزرگ</option></select></div>
@@ -233,6 +253,8 @@ async function loadChatList() {
   if(mine.error)throw mine.error;
   const membershipMap=new Map((mine.data||[]).map(x=>[x.conversation_id,x]));
   state.chats=(data||[]).filter(c=>membershipMap.has(c.id)||(c.kind==='channel'&&c.visibility==='public')).map(c=>({...c,membership:membershipMap.get(c.id)||null}));
+  const directIds=state.chats.filter(c=>c.kind==='direct').map(c=>c.id);
+  if(directIds.length){const peers=await supabase.rpc('hgd_direct_chat_peers',{p_conversation_ids:directIds});if(peers.error&&!/function .* does not exist|schema cache/i.test(peers.error.message||''))throw peers.error;const names=new Map((peers.data||[]).map(x=>[x.conversation_id,x.display_name]));state.chats=state.chats.map(c=>c.kind==='direct'?{...c,title:names.get(c.id)||c.title||'گفت‌وگوی خصوصی'}:c);}
 }
 async function renderChats(root) {
   await loadChatList();
@@ -243,14 +265,14 @@ async function renderChats(root) {
   const allowCommunity=featureEnabled('community_chat');
   const canSend=Boolean(current && (current.kind!=='channel' || ['owner','admin','moderator'].includes(current.membership?.member_role)));
   const directCreate=allowPrivate?`<h4>گفت‌وگوی خصوصی</h4><form class="hgd-form" data-hgd-form="search-chat-users">${field('نام نمایشی کاربر را جست‌وجو کن','query','search','','required minlength="2" maxlength="60" placeholder="حداقل دو حرف"')}<button type="submit" class="hgd-button">جست‌وجوی کاربران</button></form><div class="hgd-list">${state.chatUserResults.length?state.chatUserResults.map(u=>`<article class="hgd-item"><div class="hgd-item-main"><b>${escapeHtml(u.display_name||'کاربر هم‌قدم')}</b></div>${button('شروع گفتگو','start-direct-chat',`data-id="${escapeHtml(u.id)}"`,'soft')}</article>`).join(''):empty('کاربری پیدا نشده','نام نمایشی را جست‌وجو کن.')}</div>`:`<div class="hgd-alert">ساخت چت خصوصی فعلاً از طرف مدیریت غیرفعال شده است.</div>`;
-  const communityCreate=allowCommunity?`${button('ایجاد گروه/کانال','chat-create-toggle','','primary')}`:'';
+  const communityCreate=allowCommunity?`${button('＋ ساخت گروه یا کانال','chat-create-toggle','','primary')}`:'';
   const communityOptions=allowCommunity?`<div class="hgd-line"></div><h4>عضویت با لینک دعوت</h4><form class="hgd-inline-form" data-hgd-form="join-chat-invite"><div class="hgd-field"><label for="hgd-invite-code">کد دعوت</label><input id="hgd-invite-code" name="invite_code" required minlength="20" maxlength="64" pattern="[a-f0-9]+"></div><button type="submit" class="hgd-button">پیوستن</button></form><div id="hgd-chat-create" hidden><div class="hgd-line"></div><h4>ایجاد گروه یا کانال</h4><form class="hgd-form" data-hgd-form="create-chat">${field('نام گروه یا کانال','title','text','','required maxlength="120"')}<div class="hgd-field"><label for="hgd-kind">نوع</label><select name="kind" id="hgd-kind"><option value="group">گروه خصوصی</option>\${isAdmin()?'<option value="channel">کانال</option>':''}</select></div><div class="hgd-field"><label for="hgd-visibility">دسترسی</label><select name="visibility" id="hgd-visibility"><option value="private">خصوصی با دعوت</option>\${isAdmin()?'<option value="public">کانال عمومی</option>':''}</select></div><div class="hgd-field"><label for="hgd-description">توضیح</label><textarea id="hgd-description" name="description" maxlength="1200"></textarea></div><div class="hgd-field"><label for="hgd-chat-cover">تصویر گروه یا کانال (PNG، JPG یا WebP، حداکثر ۵ MiB)</label><input id="hgd-chat-cover" name="cover" type="file" accept="image/png,image/jpeg,image/webp"></div><button type="submit" class="hgd-button primary">ساخت</button></form></div>`:'';
   const messageComposer=canSend?`<form class="hgd-form" data-hgd-form="send-chat-message"><div class="hgd-field"><label for="hgd-chat-body">متن پیام</label><textarea id="hgd-chat-body" name="body" rows="3" required maxlength="5000" placeholder="پیامت را بنویس…"></textarea></div><div class="hgd-row"><button type="submit" class="hgd-button primary">ارسال</button>${button('دعوت عضو','create-chat-invite','','soft')}${button('تازه‌سازی','reload-chats')}</div></form>
   <details class="hgd-poll-create"><summary>ساخت نظرسنجی</summary><form class="hgd-form" data-hgd-form="create-chat-poll"><div class="hgd-field"><label>پرسش نظرسنجی</label><input name="question" required maxlength="240"></div><div class="hgd-field"><label>گزینه‌ها (هر گزینه در یک خط؛ ۲ تا ۱۰ گزینه)</label><textarea name="options" required maxlength="1600" rows="4"></textarea></div><label class="hgd-option"><input type="checkbox" name="multiple_choice"> امکان انتخاب چند گزینه</label><button class="hgd-button" type="submit">ساخت نظرسنجی</button></form></details>
   <form class="hgd-form hgd-attachment-form" data-hgd-form="upload-chat-attachment"><div class="hgd-field"><label for="hgd-chat-file">پیوست تا ۵۰ MiB</label><input id="hgd-chat-file" name="file" type="file" required accept="image/png,image/jpeg,image/webp,image/gif,application/pdf,text/plain,text/csv,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.zip,.7z,.mp3,.mp4"></div><div class="hgd-small">فایل‌ها خصوصی می‌مانند و لینک دانلود موقت دارند.</div><button type="submit" class="hgd-button">بارگذاری پیوست</button></form>`:'';
   root.innerHTML=`<div class="hgd-heading"><div><h3>پیام‌رسان هم‌قدم</h3><p>گفت‌وگوی خصوصی، گروه، کانال، پاسخ، واکنش، ویرایش، فوروارد، گزارش، پیوست و نظرسنجی؛ با محدودیت‌های سمت سرور.</p></div>${communityCreate}</div>
   <div class="hgd-grid two"><section class="hgd-card">${directCreate}${communityOptions}
-  <div class="hgd-line"></div><h4>گفت‌وگوهای من و کانال‌های عمومی</h4><div class="hgd-list">${state.chats.length?state.chats.map(c=>{const cover=c.cover_path?supabase.storage.from('hamghadam-conversation-covers').getPublicUrl(c.cover_path).data.publicUrl:'';return `<button class="hgd-item" type="button" data-hgd-action="select-chat" data-id="${escapeHtml(c.id)}" style="text-align:right;cursor:pointer;background:${c.id===state.chatId?'#eef9f1':'#fff'}">${cover?`<img src="${escapeHtml(cover)}" alt="" width="48" height="48" style="object-fit:cover;border-radius:12px">`:''}<span class="hgd-item-main"><h4>${c.kind==='direct'?'☏ ':c.kind==='group'?'◉ ':'▤ '}${escapeHtml(c.title|| (c.kind==='direct'?'گفت‌وگوی خصوصی':c.kind==='group'?'گروه':'کانال'))}</h4><p>${escapeHtml(c.description||'بدون توضیح')}</p><div class="hgd-item-foot"><span class="hgd-chip">${c.kind==='direct'?'خصوصی':c.kind==='group'?'گروه':c.visibility==='public'?'کانال عمومی':'کانال خصوصی'}</span><span class="hgd-small">${faDate(c.last_message_at)}</span></div></span></button>`}).join(''):empty('گفت‌وگویی در دسترس نیست','یک گفت‌وگوی خصوصی، گروه یا کانال بساز تا شروع کنیم.')}</div></section>
+  <div class="hgd-line"></div><h4>همهٔ گفتگوهای من</h4><p class="hgd-muted">گفت‌وگوی خصوصی، گروه یا کانالی که عضو آن هستی همین‌جا نمایش داده می‌شود.</p><div class="hgd-list">${state.chats.length?state.chats.map(c=>{const cover=c.cover_path?supabase.storage.from('hamghadam-conversation-covers').getPublicUrl(c.cover_path).data.publicUrl:'';return `<button class="hgd-item" type="button" data-hgd-action="select-chat" data-id="${escapeHtml(c.id)}" style="text-align:right;cursor:pointer;background:${c.id===state.chatId?'#eef9f1':'#fff'}">${cover?`<img src="${escapeHtml(cover)}" alt="" width="48" height="48" style="object-fit:cover;border-radius:12px">`:''}<span class="hgd-item-main"><h4>${c.kind==='direct'?'☏ ':c.kind==='group'?'◉ ':'▤ '}${escapeHtml(c.title|| (c.kind==='direct'?'گفت‌وگوی خصوصی':c.kind==='group'?'گروه':'کانال'))}</h4><p>${escapeHtml(c.description||'بدون توضیح')}</p><div class="hgd-item-foot"><span class="hgd-chip">${c.kind==='direct'?'خصوصی':c.kind==='group'?'گروه':c.visibility==='public'?'کانال عمومی':'کانال خصوصی'}</span><span class="hgd-small">${faDate(c.last_message_at)}</span></div></span></button>`}).join(''):empty('گفت‌وگویی در دسترس نیست','یک گفت‌وگوی خصوصی، گروه یا کانال بساز تا شروع کنیم.')}</div></section>
   <section class="hgd-card"><h4>${current?escapeHtml(current.title||'گفت‌وگو'):'گفت‌وگوی انتخاب‌شده'}</h4>${current?`${current.cover_path?`<img src="${escapeHtml(supabase.storage.from('hamghadam-conversation-covers').getPublicUrl(current.cover_path).data.publicUrl)}" alt="تصویر ${escapeHtml(current.title||'گفت‌وگو')}" width="64" height="64" style="object-fit:cover;border-radius:16px">`:''}<div class="hgd-pills"><span class="hgd-chip">${current.kind==='direct'?'خصوصی':current.kind==='group'?'گروه':'کانال'}</span><span class="hgd-chip">${current.visibility==='public'?'عمومی':'خصوصی'}</span>${current.membership?.member_role?`<span class="hgd-chip">${escapeHtml(current.membership.member_role)}</span>`:''}</div><div class="hgd-thread" id="hgd-chat-thread">${renderMessageList(state.messages)}</div>${current.kind==='channel'&&!canSend?alertMarkup('این کانال فقط‌خواندنی است؛ فقط مالک یا مدیر کانال می‌تواند پیام و نظرسنجی منتشر کند.','warn'):''}${state.replyId?`<div class="hgd-alert">پاسخ به پیام انتخاب‌شده فعال است. ${button('لغو پاسخ','clear-reply')}</div>`:''}${messageComposer}`:empty('برای دیدن پیام‌ها، یک گفتگو را انتخاب کن')}</section></div>`;
   if(current) subscribeChat(current.id);
 }
@@ -498,6 +520,8 @@ async function consumeIncomingInvite() {
   catch(e){console.warn('Invite join failed:',errText(e));}
 }
 
+document.addEventListener('input',(event)=>{if(event.target.id!=='searchQ')return;const q=event.target.value.trim();clearTimeout(window.__hgdSearchTimer);const mount=document.getElementById('searchRemoteList');if(mount)mount.innerHTML=q?'<p class="small muted">در حال جست‌وجوی محتوای آنلاین…</p>':'';window.__hgdSearchTimer=setTimeout(async()=>{const target=document.getElementById('searchRemoteList');if(!target||!q||!state.user||!supabase)return;if(q.length<2){target.innerHTML='<p class="small muted">برای جست‌وجوی آنلاین دست‌کم دو نویسه بنویس.</p>';return;}const request=++state.searchRequest;const {data,error}=await supabase.rpc('search_app_content',{p_query:q,p_limit:40});if(request!==state.searchRequest||!document.getElementById('searchRemoteList'))return;if(error){target.innerHTML='<p class="small muted">جست‌وجوی آنلاین موقتاً در دسترس نیست.</p>';console.warn('Global search:',errText(error));return;}const rows=data||[];target.innerHTML='<h3>محتوای آنلاین</h3>'+(rows.length?'<div class="stack">'+rows.map(x=>'<div class="item"><b>'+escapeHtml(x.title||'نتیجه')+'</b><p class="small muted">'+escapeHtml(String(x.snippet||'').slice(0,240))+'</p><button class="btn small" type="button" data-hgd-search-tab="'+escapeHtml(x.target_tab||'chats')+'">بازکردن بخش</button></div>').join('')+'</div>':'<p class="small muted">در محتوای آنلاین نتیجه‌ای پیدا نشد.</p>');},350);});
+document.addEventListener('click',(event)=>{const b=event.target.closest('[data-hgd-search-tab]');if(b)void openSuite(b.dataset.hgdSearchTab);});
 function registerAppHooks() {
   addLaunchers();
   if(supabase) {

@@ -30,7 +30,9 @@ export function normalizeMessage(value) {
 
 /** Roles used for UI affordances must come from app_metadata, never user_metadata. */
 export function isSupportAgent(user) {
-  return Boolean(user && user.app_metadata && user.app_metadata.role === 'support');
+  const metadata = user?.app_metadata || {};
+  const roles = Array.isArray(metadata.roles) ? metadata.roles : [];
+  return Boolean(user && (metadata.role === 'support' || ['admin', 'super_admin'].includes(metadata.role) || roles.some((role) => ['support', 'admin', 'super_admin'].includes(role))));
 }
 
 export function statusLabel(status) {

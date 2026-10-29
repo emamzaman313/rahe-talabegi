@@ -23,3 +23,6 @@ body.hgd-occasion-birth .navitem.active, body.hgd-occasion-martyrdom .navitem.ac
 body.hgd-occasion-birth .card, body.hgd-occasion-martyrdom .card, body.hgd-occasion-religious .card{border-color:color-mix(in srgb,var(--hgd-accent) 14%,var(--line))}
 body.hgd-reduce-motion #hgd-suite-root *,body.hgd-reduce-motion *{scroll-behavior:auto!important;animation:none!important;transition:none!important}
 #hgd-suite-root .hgd-window{font-size:calc(14px * var(--font-scale,1))}
+
+.hgd-global-audio-dock{position:fixed;z-index:900;inset:auto 12px 12px auto;display:flex;align-items:center;gap:10px;max-width:min(92vw,520px);padding:10px 12px;border:1px solid #cfe2d5;border-radius:16px;background:var(--paper,#fff);box-shadow:0 10px 32px #193c2926;color:var(--navy,#27483b);font-size:12px}.hgd-global-audio-dock audio{width:min(320px,62vw);height:38px}.hgd-occasion-birth{--occasion-glow:1}.hgd-occasion-martyrdom{--occasion-glow:1}
+@media(max-width:600px){.hgd-global-audio-dock{inset:auto 8px 8px 8px;max-width:none;justify-content:space-between}.hgd-global-audio-dock audio{width:min(68vw,320px)}}
