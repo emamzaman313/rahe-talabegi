@@ -43,7 +43,7 @@
 
 - سایت GitHub Pages در `https://nagshe-negar.github.io/rahe-talabegi/` پاسخ HTTP 200 می‌دهد.
 - workflow `40929613789` روی commit `1ac4071773def3353b39af57e8fd7f87121f6e67` با موفقیت کامل شد: ۸۹ تست، build وب، assembleDebug، `apksigner verify` و بررسی package `ir.rahetalabegi.app` و target SDK 36.
-- assetهای release `android-latest` در ۲۹ اکتبر ۲۰۲۶ به‌روزرسانی شدند. APK با حجم 6,729,654 بایت و SHA-256 برابر `c176eee020aaa4251981602ada26528b248c70efbf189ad3bf52ee857db319c9` منتشر شد.
+- assetهای release `android-latest` در ۲۹ اکتبر ۲۰۲۶ به‌روزرسانی شدند. APK با حجم 6,729,654 بایت منتشر شد؛ فایل `SHA256SUMS.txt` در همان release نگه‌داری می‌شود تا hash دقیق همان artifact قابل بررسی باشد.
 - این APK با کلید debug امضا شده است؛ برای انتشار Google Play به signing key و تنظیم امن آن نیاز است. نصب روی دستگاه واقعی در این دور انجام نشد.
 - workflow `static.yml` برای commit `1ac4071` با موفقیت سایت را deploy کرد. workflow `finish-hamghadam.yml` همان commit را تست/build کرد و سپس APK را ساخت، بررسی و روی release `android-latest` منتشر کرد.
 - Vercel برای این پروژه متصل نیست؛ میزبان وب فعلی GitHub Pages است.
