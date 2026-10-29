@@ -83,7 +83,7 @@ function renderGate() {
     signup: ['از همین قدم شروع کن', 'یک حساب بساز تا مسیرت بین دستگاه‌ها ادامه پیدا کند.', 'ساخت حساب'],
     reset: ['بازیابی رمز عبور', 'نشانی ایمیلت را بنویس تا راهنمای بازیابی ارسال شود.', 'ارسال راهنمای بازیابی'],
     update: ['رمز تازه انتخاب کن', 'رمز عبور جدیدی برای حساب خودت ثبت کن.', 'ثبت رمز تازه'],
-    verify: ['ایمیلت را تأیید کن', `اگر ایمیل کد شش‌رقمی دارد، آن را وارد کن؛ اگر پیوند دارد، روی آن بزن تا به برنامه برگردی.`, 'تأیید و ورود'],
+    verify: ['ایمیلت را تأیید کن', `کدی را که به ایمیلت ارسال شده وارد کن؛ اگر پیوند دریافت کردی، روی آن بزن تا به برنامه برگردی.`, 'تأیید و ورود'],
   };
   const [title, subtitle, submit] = titles[mode] || titles.login;
   const showPassword = mode === 'update';
@@ -91,7 +91,7 @@ function renderGate() {
   const form = isSupabaseConfigured ? `<form class="hg-form" id="hg-auth-form" novalidate>
     ${mode === 'signup' ? `<div class="hg-field"><label for="hg-name">نام نمایشی (اختیاری)</label><input id="hg-name" name="display_name" type="text" maxlength="60" autocomplete="nickname" placeholder="مثلاً علی"></div>` : ''}
     ${mode !== 'update' && mode !== 'verify' ? `<div class="hg-field"><label for="hg-email">ایمیل</label><input id="hg-email" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com" dir="ltr"></div>` : ''}
-    ${mode === 'verify' ? `<input type="hidden" name="email" value="${escape(pendingEmail)}"><div class="hg-field"><label for="hg-code">کد تأیید شش‌رقمی</label><input id="hg-code" name="token" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9٠-٩۰-۹]{6}" minlength="6" maxlength="6" required dir="ltr" placeholder="123456"></div>` : ''}
+    ${mode === 'verify' ? `<input type="hidden" name="email" value="${escape(pendingEmail)}"><div class="hg-field"><label for="hg-code">کد تأیید</label><input id="hg-code" name="token" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9٠-٩۰-۹]{6,10}" minlength="6" maxlength="10" required dir="ltr" placeholder="12345678"></div>` : ''}
     ${showPassword ? `<div class="hg-field"><label for="hg-password">${passwordLabel}</label><input id="hg-password" name="password" type="password" autocomplete="${mode === 'update' ? 'new-password' : mode === 'signup' ? 'new-password' : 'current-password'}" minlength="8" maxlength="128" required placeholder="حداقل ۸ نویسه" dir="ltr"></div>` : ''}
     ${notice ? `<div class="hg-alert ${escape(noticeType)}" role="status" aria-live="polite">${escape(notice)}</div>` : ''}
     <button class="hg-submit" type="submit" ${busy ? 'disabled' : ''}><span>${busy ? 'در حال انجام…' : submit}</span><span aria-hidden="true">↙</span></button>
@@ -232,7 +232,7 @@ async function handleSubmit(form) {
   const password = String(data.get('password') || '');
   const name = normalizeDisplayName(data.get('display_name'), '');
   const token = normalizeOtp(data.get('token'));
-  if (mode === 'verify' && !/^\d{6}$/.test(token)) return setNotice('کد باید دقیقاً شش رقم باشد.', 'error');
+  if (mode === 'verify' && !/^\d{6,10}$/.test(token)) return setNotice('کد باید بین ۶ تا ۱۰ رقم باشد.', 'error');
   if (mode !== 'update' && mode !== 'verify' && !email) return setNotice('ایمیل را وارد کن.', 'error');
   if (mode === 'update' && password.length < 8) return setNotice('رمز عبور باید دست‌کم ۸ نویسه داشته باشد.', 'error');
   busy = true;
