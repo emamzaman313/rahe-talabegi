@@ -9,12 +9,14 @@ const support = fs.readFileSync(path.join(root, 'src/support-chat.js'), 'utf8');
 const suite = fs.readFileSync(path.join(root, 'src/hamghadam-suite.js'), 'utf8');
 const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261029185356_chat_discovery_and_covers.sql'), 'utf8');
 
-test('main account flow sends and verifies email OTP codes for sign-up and sign-in', () => {
+test('new accounts verify email then set a password; later sign-in uses email and password', () => {
   assert.match(auth, /signInWithOtp\(\{\s*email,\s*options:\s*\{\s*shouldCreateUser:\s*true/i);
-  assert.match(auth, /signInWithOtp\(\{\s*email,\s*options:\s*\{\s*shouldCreateUser:\s*false/i);
   assert.match(auth, /verifyOtp\(\{\s*email:\s*pendingEmail,\s*token,\s*type:\s*'email'/i);
+  assert.match(auth, /pendingMode === 'signup'[\s\S]*?mode = 'set-password'/);
+  assert.match(auth, /updateUser\(\{\s*password\s*\}\)/);
+  assert.match(auth, /signInWithPassword\(\{\s*email,\s*password\s*\}\)/);
   assert.match(auth, /autocomplete="one-time-code"/);
-  assert.doesNotMatch(auth, /signInWithPassword|auth\.signUp\(/);
+  assert.doesNotMatch(auth, /signInWithOtp\(\{\s*email,\s*options:\s*\{\s*shouldCreateUser:\s*false/i);
 });
 
 test('support screen uses the same email code verification instead of a password form', () => {
