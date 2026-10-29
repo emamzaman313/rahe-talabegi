@@ -1,4 +1,5 @@
 import './support-chat.css';
+import './ai-assistant.js';
 import { supabase as sharedSupabase, isSupabaseConfigured } from './supabase-client.js';
 import { escapeHtml, formatTimestamp, isSupportAgent, normalizeMessage, statusLabel } from './support-utils.mjs';
 
