@@ -24,9 +24,13 @@ test('support screen uses the same email code verification instead of a password
 });
 
 test('chat UI discovers people by display name and allows named groups/channels with a cover image', () => {
+  assert.ok(suite.includes('hgd-chat-launcher'));
+  assert.ok(suite.includes("openSuite('chats')"));
   assert.match(suite, /data-hgd-form="search-chat-users"/);
   assert.match(suite, /rpc\('search_chat_users'/);
   assert.match(suite, /button\('شروع گفتگو','start-direct-chat'/);
+  assert.ok(suite.includes("isAdmin()?'<option value=\"channel\">کانال</option>':''"));
+  assert.ok(suite.includes("isAdmin()?'<option value=\"public\">کانال عمومی</option>':''"));
   assert.match(suite, /name="cover" type="file" accept="image\/png,image\/jpeg,image\/webp"/);
   assert.match(suite, /set_chat_conversation_cover/);
   assert.match(suite, /cover_path/);
