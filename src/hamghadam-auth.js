@@ -81,6 +81,7 @@ function renderGate() {
   const titles = {
     login: ['خوش برگشتی', 'برای ادامهٔ مسیرت وارد حساب هم‌قدم شو.', 'ورود به هم‌قدم'],
     signup: ['از همین قدم شروع کن', 'یک حساب بساز تا مسیرت بین دستگاه‌ها ادامه پیدا کند.', 'ساخت حساب'],
+    'set-password': ['رمز ورودت را بساز', 'ایمیلت تأیید شد. حالا یک رمز عبور بساز تا دفعه‌های بعد با ایمیل و رمز وارد شوی.', 'ثبت رمز و ورود'],
     reset: ['بازیابی رمز عبور', 'نشانی ایمیلت را بنویس تا کد بازیابی برایت ارسال شود.', 'ارسال کد بازیابی'],
 
     update: ['رمز تازه انتخاب کن', 'رمز عبور جدیدی برای حساب خودت ثبت کن.', 'ثبت رمز تازه'],
@@ -88,13 +89,13 @@ function renderGate() {
 
   };
   const [title, subtitle, submit] = titles[mode] || titles.login;
-  const showPassword = mode === 'update';
-  const passwordLabel = mode === 'update' ? 'رمز عبور تازه' : 'رمز عبور';
+  const showPassword = ['login', 'update', 'set-password'].includes(mode);
+  const passwordLabel = mode === 'update' || mode === 'set-password' ? 'رمز عبور تازه' : 'رمز عبور';
   const form = isSupabaseConfigured ? `<form class="hg-form" id="hg-auth-form" novalidate>
     ${mode === 'signup' ? `<div class="hg-field"><label for="hg-name">نام نمایشی (اختیاری)</label><input id="hg-name" name="display_name" type="text" maxlength="60" autocomplete="nickname" placeholder="مثلاً علی"></div>` : ''}
     ${mode !== 'update' && mode !== 'verify' ? `<div class="hg-field"><label for="hg-email">ایمیل</label><input id="hg-email" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com" dir="ltr"></div>` : ''}
     ${mode === 'verify' ? `<input type="hidden" name="email" value="${escape(pendingEmail)}"><div class="hg-field"><label for="hg-code">کد تأیید</label><input id="hg-code" name="token" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9٠-٩۰-۹]{6,10}" minlength="6" maxlength="10" required dir="ltr" placeholder="12345678"></div>` : ''}
-    ${showPassword ? `<div class="hg-field"><label for="hg-password">${passwordLabel}</label><input id="hg-password" name="password" type="password" autocomplete="${mode === 'update' ? 'new-password' : mode === 'signup' ? 'new-password' : 'current-password'}" minlength="8" maxlength="128" required placeholder="حداقل ۸ نویسه" dir="ltr"></div>` : ''}
+    ${showPassword ? `<div class="hg-field"><label for="hg-password">${passwordLabel}</label><input id="hg-password" name="password" type="password" autocomplete="${mode === 'update' || mode === 'set-password' ? 'new-password' : 'current-password'}" minlength="8" maxlength="128" required placeholder="حداقل ۸ نویسه" dir="ltr"></div>` : ''}
     ${notice ? `<div class="hg-alert ${escape(noticeType)}" role="status" aria-live="polite">${escape(notice)}</div>` : ''}
     <button class="hg-submit" type="submit" ${busy ? 'disabled' : ''}><span>${busy ? 'در حال انجام…' : submit}</span><span aria-hidden="true">↙</span></button>
     <div class="hg-form-row">${mode === 'login' ? `<button class="hg-link" type="button" data-hg-mode="signup">حساب ندارم؛ ثبت‌نام</button><button class="hg-link" type="button" data-hg-mode="reset">رمزم را فراموش کرده‌ام</button>` : mode === 'signup' ? `<button class="hg-link" type="button" data-hg-mode="login">حساب دارم؛ ورود</button>` : mode === 'verify' ? `<button class="hg-link" type="button" data-hg-action="resend-code">ارسال دوبارهٔ کد</button><button class="hg-link" type="button" data-hg-mode="${escape(pendingMode === 'recovery' ? 'reset' : pendingMode || 'login')}">تغییر ایمیل</button>` : mode === 'update' ? `<button class="hg-link" type="button" data-hg-mode="login">لغو</button>` : `<button class="hg-link" type="button" data-hg-mode="login">بازگشت به ورود</button>`}</div>
@@ -218,7 +219,7 @@ function renderGateIntoRoot() {
 }
 
 function setMode(next) {
-  mode = ['login', 'signup', 'reset', 'update'].includes(next) ? next : 'login';
+  mode = ['login', 'signup', 'reset', 'update', 'set-password'].includes(next) ? next : 'login';
   notice = '';
   noticeType = 'info';
   busy = false;
@@ -235,8 +236,8 @@ async function handleSubmit(form) {
   const name = normalizeDisplayName(data.get('display_name'), '');
   const token = normalizeOtp(data.get('token'));
   if (mode === 'verify' && !/^\d{6,10}$/.test(token)) return setNotice('کد باید بین ۶ تا ۱۰ رقم باشد.', 'error');
-  if (mode !== 'update' && mode !== 'verify' && !email) return setNotice('ایمیل را وارد کن.', 'error');
-  if (mode === 'update' && password.length < 8) return setNotice('رمز عبور باید دست‌کم ۸ نویسه داشته باشد.', 'error');
+  if (!['update', 'set-password', 'verify'].includes(mode) && !email) return setNotice('ایمیل را وارد کن.', 'error');
+  if (['update', 'set-password', 'login'].includes(mode) && password.length < 8) return setNotice('رمز عبور باید دست‌کم ۸ نویسه داشته باشد.', 'error');
   busy = true;
   notice = '';
   renderGateIntoRoot();
@@ -248,11 +249,11 @@ async function handleSubmit(form) {
       if (error) throw error;
       mode = 'verify'; setNotice('ایمیل تأیید فرستاده شد. اگر کد می‌بینی، آن را وارد کن؛ اگر پیوند می‌بینی، روی آن بزن تا وارد شوی.', 'info');
     } else if (mode === 'login') {
-      pendingEmail = email; pendingName = ''; pendingMode = 'login';
-      const emailRedirectTo = `${location.origin}${location.pathname}`;
-      const { error } = await withDeadline(supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo } }), 'ارسال ایمیل ورود');
+      const { error } = await withDeadline(supabase.auth.signInWithPassword({ email, password }), 'ورود به حساب');
       if (error) throw error;
-      mode = 'verify'; setNotice('اگر این ایمیل به حسابی متصل باشد، ایمیل ورود فرستاده شده است. کد را وارد کن یا روی پیوند ایمیل بزن.', 'info');
+      const { data: sessionData, error: sessionError } = await withDeadline(supabase.auth.getSession(), 'دریافت نشست ورود');
+      if (sessionError) throw sessionError;
+      await acceptSession(sessionData?.session);
     } else if (mode === 'verify') {
       const recoveryCode = pendingMode === 'recovery';
       const verification = recoveryCode
@@ -266,6 +267,12 @@ async function handleSubmit(form) {
         mode = 'update';
         setGateOpen(true);
         setNotice('ایمیل تأیید شد. حالا رمز عبور جدیدت را ثبت کن.', 'info');
+      } else if (pendingMode === 'signup') {
+        user = response.session.user;
+        pendingMode = 'set-password';
+        mode = 'set-password';
+        setGateOpen(true);
+        setNotice('ایمیلت تأیید شد. حالا رمز ورودت را بساز.', 'info');
       } else {
         await acceptSession(response.session);
         pendingEmail = ''; pendingName = '';
@@ -280,14 +287,22 @@ async function handleSubmit(form) {
       pendingEmail = email; pendingName = ''; pendingMode = 'recovery';
       mode = 'verify';
       setNotice('اگر این ایمیل به حسابی متصل باشد، کد بازیابی ارسال شده است. فقط کد تازه‌ترین ایمیل را وارد کن.', 'info');
-    } else if (mode === 'update') {
+    } else if (mode === 'update' || mode === 'set-password') {
+      const creatingPassword = mode === 'set-password';
       const { error } = await withDeadline(
         supabase.auth.updateUser({ password }),
-        'تغییر رمز عبور'
+        creatingPassword ? 'ساخت رمز عبور' : 'تغییر رمز عبور'
       );
       if (error) throw error;
-      setMode('login');
-      setNotice('رمز عبور تغییر کرد. اکنون می‌توانی وارد شوی.', 'info');
+      if (creatingPassword) {
+        const { data: sessionData, error: sessionError } = await withDeadline(supabase.auth.getSession(), 'دریافت نشست ورود');
+        if (sessionError) throw sessionError;
+        await acceptSession(sessionData?.session);
+        pendingEmail = ''; pendingName = ''; pendingMode = 'login';
+      } else {
+        setMode('login');
+        setNotice('رمز عبور تغییر کرد. اکنون می‌توانی با ایمیل و رمز وارد شوی.', 'info');
+      }
     }
   } catch (error) {
     const message = String(error?.message || 'عملیات ناموفق بود.');
@@ -295,7 +310,8 @@ async function handleSubmit(form) {
       ? 'پاسخ سرور به‌موقع نرسید. اتصال اینترنت را بررسی کن و دوباره تلاش کن.'
       : /failed to fetch|network|fetch|abort/i.test(message)
         ? 'ارتباط با سرور برقرار نشد. اینترنت را بررسی کن و دوباره تلاش کن.'
-        : /invalid login credentials|invalid token|token has expired|otp_expired/i.test(message) ? 'این کد معتبر نیست یا با درخواست کد تازه باطل شده است. تازه‌ترین ایمیل را باز کن؛ اگر چند کد درخواست کردی، فقط آخرین کد را وارد کن. پس از درخواست کد جدید دست‌کم ۶۰ ثانیه صبر کن.'
+        : /invalid login credentials/i.test(message) && mode === 'login' ? 'ایمیل یا رمز عبور درست نیست. اگر قبلاً با کد وارد می‌شدی، از «رمزم را فراموش کرده‌ام» رمز بساز.'
+        : /invalid token|token has expired|otp_expired/i.test(message) ? 'این کد معتبر نیست یا با درخواست کد تازه باطل شده است. تازه‌ترین ایمیل را باز کن؛ اگر چند کد درخواست کردی، فقط آخرین کد را وارد کن. پس از درخواست کد جدید دست‌کم ۶۰ ثانیه صبر کن.'
         : /email not confirmed/i.test(message) ? 'ایمیل هنوز تأیید نشده است؛ صندوق ایمیلت را بررسی کن.'
         : /user already registered/i.test(message) ? 'این ایمیل قبلاً ثبت شده است؛ وارد حساب شو.'
         : `عملیات انجام نشد: ${message}`;
