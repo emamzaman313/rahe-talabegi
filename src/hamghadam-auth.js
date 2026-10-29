@@ -81,9 +81,11 @@ function renderGate() {
   const titles = {
     login: ['خوش برگشتی', 'برای ادامهٔ مسیرت وارد حساب هم‌قدم شو.', 'ورود به هم‌قدم'],
     signup: ['از همین قدم شروع کن', 'یک حساب بساز تا مسیرت بین دستگاه‌ها ادامه پیدا کند.', 'ساخت حساب'],
-    reset: ['بازیابی رمز عبور', 'نشانی ایمیلت را بنویس تا راهنمای بازیابی ارسال شود.', 'ارسال راهنمای بازیابی'],
+    reset: ['بازیابی رمز عبور', 'نشانی ایمیلت را بنویس تا کد بازیابی برایت ارسال شود.', 'ارسال کد بازیابی'],
+
     update: ['رمز تازه انتخاب کن', 'رمز عبور جدیدی برای حساب خودت ثبت کن.', 'ثبت رمز تازه'],
-    verify: ['ایمیلت را تأیید کن', `کدی را که به ایمیلت ارسال شده وارد کن؛ اگر پیوند دریافت کردی، روی آن بزن تا به برنامه برگردی.`, 'تأیید و ورود'],
+    verify: [pendingMode === 'recovery' ? 'کد بازیابی را وارد کن' : 'ایمیلت را تأیید کن', pendingMode === 'recovery' ? 'کد تازه‌ترین ایمیل بازیابی را وارد کن تا بتوانی رمز جدید بسازی.' : 'کدی را که به ایمیلت ارسال شده وارد کن؛ اگر پیوند دریافت کردی، روی آن بزن تا به برنامه برگردی.', pendingMode === 'recovery' ? 'تأیید کد و ادامه' : 'تأیید و ورود'],
+
   };
   const [title, subtitle, submit] = titles[mode] || titles.login;
   const showPassword = mode === 'update';
@@ -95,7 +97,7 @@ function renderGate() {
     ${showPassword ? `<div class="hg-field"><label for="hg-password">${passwordLabel}</label><input id="hg-password" name="password" type="password" autocomplete="${mode === 'update' ? 'new-password' : mode === 'signup' ? 'new-password' : 'current-password'}" minlength="8" maxlength="128" required placeholder="حداقل ۸ نویسه" dir="ltr"></div>` : ''}
     ${notice ? `<div class="hg-alert ${escape(noticeType)}" role="status" aria-live="polite">${escape(notice)}</div>` : ''}
     <button class="hg-submit" type="submit" ${busy ? 'disabled' : ''}><span>${busy ? 'در حال انجام…' : submit}</span><span aria-hidden="true">↙</span></button>
-    <div class="hg-form-row">${mode === 'login' ? `<button class="hg-link" type="button" data-hg-mode="signup">حساب ندارم؛ ثبت‌نام</button>` : mode === 'signup' ? `<button class="hg-link" type="button" data-hg-mode="login">حساب دارم؛ ورود</button>` : mode === 'verify' ? `<button class="hg-link" type="button" data-hg-action="resend-code">ارسال دوبارهٔ کد</button><button class="hg-link" type="button" data-hg-mode="${escape(pendingMode || 'login')}">تغییر ایمیل</button>` : mode === 'update' ? `<button class="hg-link" type="button" data-hg-mode="login">لغو</button>` : `<button class="hg-link" type="button" data-hg-mode="login">بازگشت به ورود</button>`}</div>
+    <div class="hg-form-row">${mode === 'login' ? `<button class="hg-link" type="button" data-hg-mode="signup">حساب ندارم؛ ثبت‌نام</button><button class="hg-link" type="button" data-hg-mode="reset">رمزم را فراموش کرده‌ام</button>` : mode === 'signup' ? `<button class="hg-link" type="button" data-hg-mode="login">حساب دارم؛ ورود</button>` : mode === 'verify' ? `<button class="hg-link" type="button" data-hg-action="resend-code">ارسال دوبارهٔ کد</button><button class="hg-link" type="button" data-hg-mode="${escape(pendingMode === 'recovery' ? 'reset' : pendingMode || 'login')}">تغییر ایمیل</button>` : mode === 'update' ? `<button class="hg-link" type="button" data-hg-mode="login">لغو</button>` : `<button class="hg-link" type="button" data-hg-mode="login">بازگشت به ورود</button>`}</div>
   </form>` : `<div class="hg-alert warn" role="status">اتصال امن هنوز در تنظیمات ساخت وب/اندروید تعریف نشده است. تا زمان تنظیم نشانی پروژه و کلید عمومی Supabase، ورود فعال نمی‌شود.</div><ol class="hg-setup-list"><li>نشانی پروژه را با متغیر <code>VITE_SUPABASE_URL</code> تنظیم کن.</li><li>کلید عمومی را با متغیر <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> تنظیم کن.</li><li>برنامه را دوباره build کن. کلید secret یا <code>service_role</code> را هرگز داخل اپ قرار نده.</li></ol>`;
 
   return `<div class="hg-shell"><section class="hg-story" aria-label="معرفی هم‌قدم">
@@ -252,11 +254,19 @@ async function handleSubmit(form) {
       if (error) throw error;
       mode = 'verify'; setNotice('اگر این ایمیل به حسابی متصل باشد، ایمیل ورود فرستاده شده است. کد را وارد کن یا روی پیوند ایمیل بزن.', 'info');
     } else if (mode === 'verify') {
-      const { data: response, error } = await withDeadline(supabase.auth.verifyOtp({ email: pendingEmail, token, type: 'email' }), 'تأیید کد');
+      const recoveryCode = pendingMode === 'recovery';
+      const { data: response, error } = await withDeadline(supabase.auth.verifyOtp({ email: pendingEmail, token, type: recoveryCode ? 'recovery' : 'email' }), 'تأیید کد');
       if (error) throw error;
       if (!response.session) throw new Error('کد تأیید شد اما نشست ورود دریافت نشد. دوباره درخواست کد بده.');
-      await acceptSession(response.session);
-      pendingEmail = ''; pendingName = '';
+      if (recoveryCode) {
+        user = response.session.user;
+        mode = 'update';
+        setGateOpen(true);
+        setNotice('ایمیل تأیید شد. حالا رمز عبور جدیدت را ثبت کن.', 'info');
+      } else {
+        await acceptSession(response.session);
+        pendingEmail = ''; pendingName = '';
+      }
     } else if (mode === 'reset') {
       const redirectTo = `${location.origin}${location.pathname}`;
       const { error } = await withDeadline(
@@ -264,7 +274,9 @@ async function handleSubmit(form) {
         'بازیابی رمز عبور'
       );
       if (error) throw error;
-      setNotice('اگر این ایمیل به حسابی متصل باشد، راهنمای بازیابی ارسال می‌شود.', 'info');
+      pendingEmail = email; pendingName = ''; pendingMode = 'recovery';
+      mode = 'verify';
+      setNotice('اگر این ایمیل به حسابی متصل باشد، کد بازیابی ارسال شده است. فقط کد تازه‌ترین ایمیل را وارد کن.', 'info');
     } else if (mode === 'update') {
       const { error } = await withDeadline(
         supabase.auth.updateUser({ password }),
@@ -280,7 +292,7 @@ async function handleSubmit(form) {
       ? 'پاسخ سرور به‌موقع نرسید. اتصال اینترنت را بررسی کن و دوباره تلاش کن.'
       : /failed to fetch|network|fetch|abort/i.test(message)
         ? 'ارتباط با سرور برقرار نشد. اینترنت را بررسی کن و دوباره تلاش کن.'
-        : /invalid login credentials|invalid token|token has expired/i.test(message) ? 'کد نادرست یا منقضی شده است. کد تازه درخواست کن.'
+        : /invalid login credentials|invalid token|token has expired|otp_expired/i.test(message) ? 'این کد معتبر نیست یا با درخواست کد تازه باطل شده است. تازه‌ترین ایمیل را باز کن؛ اگر چند کد درخواست کردی، فقط آخرین کد را وارد کن. پس از درخواست کد جدید دست‌کم ۶۰ ثانیه صبر کن.'
         : /email not confirmed/i.test(message) ? 'ایمیل هنوز تأیید نشده است؛ صندوق ایمیلت را بررسی کن.'
         : /user already registered/i.test(message) ? 'این ایمیل قبلاً ثبت شده است؛ وارد حساب شو.'
         : `عملیات انجام نشد: ${message}`;
@@ -372,7 +384,10 @@ function mount() {
     else if (action === 'logout') void logout();
     else if (action === 'resend-code' && mode === 'verify' && pendingEmail) {
       busy = true; setNotice('در حال ارسال دوباره…');
-      void supabase.auth.signInWithOtp({ email: pendingEmail, options: { shouldCreateUser: pendingMode === 'signup', emailRedirectTo: `${location.origin}${location.pathname}`, ...(pendingName ? { data: { display_name: pendingName } } : {}) } })
+      const resend = pendingMode === 'recovery'
+        ? supabase.auth.resetPasswordForEmail(pendingEmail, { redirectTo: `${location.origin}${location.pathname}` })
+        : supabase.auth.signInWithOtp({ email: pendingEmail, options: { shouldCreateUser: pendingMode === 'signup', emailRedirectTo: `${location.origin}${location.pathname}`, ...(pendingName ? { data: { display_name: pendingName } } : {}) } });
+      void resend
         .then(({ error }) => { if (error) throw error; setNotice('ایمیل تازه ارسال شد.', 'info'); })
         .catch((error) => setNotice(`ارسال کد ناموفق بود: ${error?.message || 'خطای شبکه'}`, 'error'))
         .finally(() => { busy = false; renderGateIntoRoot(); });
