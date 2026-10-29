@@ -255,7 +255,10 @@ async function handleSubmit(form) {
       mode = 'verify'; setNotice('اگر این ایمیل به حسابی متصل باشد، ایمیل ورود فرستاده شده است. کد را وارد کن یا روی پیوند ایمیل بزن.', 'info');
     } else if (mode === 'verify') {
       const recoveryCode = pendingMode === 'recovery';
-      const { data: response, error } = await withDeadline(supabase.auth.verifyOtp({ email: pendingEmail, token, type: recoveryCode ? 'recovery' : 'email' }), 'تأیید کد');
+      const verification = recoveryCode
+        ? supabase.auth.verifyOtp({ email: pendingEmail, token, type: 'recovery' })
+        : supabase.auth.verifyOtp({ email: pendingEmail, token, type: 'email' });
+      const { data: response, error } = await withDeadline(verification, 'تأیید کد');
       if (error) throw error;
       if (!response.session) throw new Error('کد تأیید شد اما نشست ورود دریافت نشد. دوباره درخواست کد بده.');
       if (recoveryCode) {
