@@ -51,7 +51,7 @@ function getRoot() {
   if (el) return el;
   el = document.createElement('div'); el.id = 'hgd-suite-root'; el.setAttribute('dir','rtl'); el.setAttribute('aria-label','قابلیت‌های تکمیلی هم‌قدم');
   el.innerHTML = `<section class="hgd-window" role="dialog" aria-modal="true" aria-labelledby="hgd-title">
-    <header class="hgd-header"><div class="hgd-brand"><div class="hgd-brand-mark">هـ</div><div><h2 id="hgd-title">هم‌قدم | امکانات اجتماعی و مطالعه</h2><p>گفت‌وگو، مباحثه، مناسبت‌ها و پیشرفت درسی</p></div></div><button type="button" class="hgd-close" data-hgd-action="close" aria-label="بستن">×</button></header>
+    <header class="hgd-header"><div class="hgd-brand"><div class="hgd-brand-mark">هـ</div><div><h2 id="hgd-title">هم‌قدم | امکانات اجتماعی و مطالعه</h2><p>گفت‌وگو، مباحثه، مناسبت‌ها و پیشرفت درسی</p></div></div><div class="hgd-row"><button type="button" class="hgd-notification-button" data-hgd-action="notifications" aria-label="اعلان‌ها">🔔 <span data-notification-count></span></button><button type="button" class="hgd-close" data-hgd-action="close" aria-label="بستن">×</button></div></header>
     <nav class="hgd-tabs" aria-label="بخش‌های هم‌قدم">${TAB_ITEMS.map(([id,ico,label]) => `<button class="hgd-tab" type="button" data-hgd-tab="${id}"><span>${ico}</span> ${label}</button>`).join('')}</nav>
     <main class="hgd-content" id="hgd-content"><div class="hgd-empty">در حال آماده‌سازی…</div></main>
     <footer class="hgd-foot"><span id="hgd-connection">وضعیت اتصال بررسی می‌شود</span><span>همهٔ داده‌های آنلاین به مجوزهای سرور وابسته‌اند؛ موفقیت فقط پس از پاسخ سرور اعلام می‌شود.</span></footer>
@@ -61,7 +61,7 @@ function getRoot() {
     const tab = event.target.closest('[data-hgd-tab]');
     if (tab) { void setTab(tab.dataset.hgdTab); return; }
     const action = event.target.closest('[data-hgd-action]');
-    if (action) { event.preventDefault(); void actionHandler(action.dataset.hgdAction, action); }
+    if (action) { event.preventDefault(); if(action.dataset.hgdAction==='open-notification'){void openNotification(action.dataset.id);return;} void actionHandler(action.dataset.hgdAction, action); }
   });
   el.addEventListener('submit', (event) => {
     const form = event.target.closest('form[data-hgd-form]');
@@ -193,6 +193,7 @@ async function openSuite(tab = 'themes') {
   try { await loadSession(); } catch (e) { renderUnauthed(`خواندن نشست انجام نشد: ${errText(e)}`); return; }
   if (!state.user) { renderUnauthed('برای استفاده از امکانات آنلاین، ابتدا در برنامه وارد حساب کاربری شو.'); return; }
   addLaunchers(); await setTab(tab);
+  void refreshNotificationCount();
 }
 function closeSuite() { const root=$('#hgd-suite-root'); root?.classList.remove('hgd-open'); document.body.style.overflow=''; if(supabase && state.chatChannel){void supabase.removeChannel(state.chatChannel);state.chatChannel=null;} }
 function renderUnauthed(message) {
@@ -347,12 +348,16 @@ async function renderQuizzes(root) {
 async function renderAnnouncements(root) {
   const {data,error}=await supabase.from('app_announcements').select('id,title,body,audience,starts_at,ends_at,created_at').eq('is_published',true).lte('starts_at',new Date().toISOString()).order('starts_at',{ascending:false}).limit(30);
   if(error)throw error;
-  root.innerHTML=`<div class="hgd-heading"><div><h3>اطلاعیه‌ها</h3><p>پیام رسمی برنامه؛ زمان و انتشار آن از سمت مدیر کنترل می‌شود.</p></div></div>${data?.length?`<div class="hgd-list">${data.map(a=>`<article class="hgd-card"><h4>${escapeHtml(a.title)}</h4><p style="white-space:pre-wrap;font-size:13px">${escapeHtml(a.body)}</p><div class="hgd-small">${faDate(a.starts_at)}</div></article>`).join('')}</div>`:empty('اطلاعیهٔ فعالی نیست')}`;
+  const {data:notifications,error:nError}=await supabase.from('in_app_notifications').select('id,title,body,kind,action_url,read_at,created_at').eq('user_id',state.user.id).order('created_at',{ascending:false}).limit(50);if(nError)throw nError;
+  const kindLabel={info:'اطلاع‌رسانی',success:'موفقیت',warning:'توجه',support:'پشتیبانی',chat:'گفت‌وگو',system:'سیستم'};
+  root.innerHTML=`<div class="hgd-heading"><div><h3>اعلان‌ها و اطلاعیه‌ها</h3><p>پیام‌های مدیر برای حساب شما، همراه با پیوند مستقیم به بخش مربوط.</p></div><span class="hgd-chip">${fmtNum((notifications||[]).filter(n=>!n.read_at).length)} خوانده‌نشده</span></div><h4>اعلان‌های حساب شما</h4>${notifications?.length?`<div class="hgd-list">${notifications.map(n=>`<article class="hgd-card hgd-notification ${n.read_at?'read':''}"><div class="hgd-item-foot"><span class="hgd-chip ${n.kind==='warning'?'warn':n.kind==='success'?'':'blue'}">${kindLabel[n.kind]||'اعلان'}</span><span class="hgd-small">${faDate(n.created_at)}</span></div><h4>${escapeHtml(n.title)}</h4><p style="white-space:pre-wrap;font-size:13px">${escapeHtml(n.body||'')}</p><div class="hgd-row">${button(n.action_url?'بازکردن بخش مربوط':'خواندم','open-notification',`data-id="${escapeHtml(n.id)}" data-url="${escapeHtml(n.action_url||'')}"`,n.read_at?'':'soft')}</div></article>`).join('')}</div>`:empty('اعلان شخصی تازه‌ای نداری')}<h4 style="margin-top:18px">اطلاعیه‌های عمومی</h4>${data?.length?`<div class="hgd-list">${data.map(a=>`<article class="hgd-card"><h4>${escapeHtml(a.title)}</h4><p style="white-space:pre-wrap;font-size:13px">${escapeHtml(a.body)}</p><div class="hgd-small">${faDate(a.starts_at)}</div></article>`).join('')}</div>`:empty('اطلاعیهٔ عمومی فعالی نیست')}`;
 }
+async function refreshNotificationCount(){if(!state.user||!supabase)return;const {count,error}=await supabase.from('in_app_notifications').select('id',{count:'exact',head:true}).eq('user_id',state.user.id).is('read_at',null);if(error){console.warn('Could not read notification count:',error.message);return;}const badge=$('[data-notification-count]');if(badge)badge.textContent=count?fmtNum(count):'';}
+async function openNotification(id){const {data,error}=await supabase.from('in_app_notifications').select('id,action_url').eq('id',id).eq('user_id',state.user.id).maybeSingle();if(error)throw error;if(!data)return;const {error:updateError}=await supabase.from('in_app_notifications').update({read_at:new Date().toISOString()}).eq('id',id).eq('user_id',state.user.id);if(updateError)throw updateError;await refreshNotificationCount();const url=data.action_url;if(!url)return;const tab=url.match(/^\/index\.html\?open=(chats|announcements|study|quizzes|settings)$/)?.[1];if(tab){closeSuite();window.dispatchEvent(new CustomEvent('hgd:navigate',{detail:{tab}}));return;}if(url==='/index.html'){closeSuite();location.href='./index.html';}}
 async function renderSettings(root) {
   const {data,error}=await supabase.from('user_preferences').select('*').eq('user_id',state.user.id).maybeSingle();if(error)throw error;state.prefs=data||null;
   root.innerHTML=`<div class="hgd-heading"><div><h3>تنظیمات و حریم خصوصی</h3><p>حساب واردشده: ${escapeHtml(state.user.email||state.user.id)}</p></div></div>
-  <div class="hgd-grid two"><section class="hgd-card"><h4>حساب و دسترسی</h4><p class="hgd-muted">نقش‌های این بخش از app_metadata امن خوانده می‌شوند، نه user_metadata قابل تغییر توسط کاربر.</p><div class="hgd-item"><div class="hgd-item-main"><b>نقش حساب</b><p>${isAdmin()?'مدیر برنامه':isManager()?'ناظر/پشتیبانی':'کاربر عادی'}</p></div><span class="hgd-chip">${isAdmin()?'Admin':isManager()?'Moderator':'Member'}</span></div>${isAdmin()?`<a class="hgd-button primary" href="./admin.html">بازکردن پنل مدیریت</a>`:''}<div class="hgd-line"></div><div class="hgd-row">${button('تازه‌سازی نشست','reload-tab')}${button('خروج از این پنجره','close')}</div></section>
+  <div class="hgd-grid two"><section class="hgd-card"><h4>حساب و دسترسی</h4><p class="hgd-muted">نقش‌های این بخش از app_metadata امن خوانده می‌شوند، نه user_metadata قابل تغییر توسط کاربر.</p><div class="hgd-item"><div class="hgd-item-main"><b>نقش حساب</b><p>${isAdmin()?'مدیر برنامه':isManager()?'ناظر/پشتیبانی':'کاربر عادی'}</p></div><span class="hgd-chip">${isAdmin()?'Admin':isManager()?'Moderator':'Member'}</span></div>${isAdmin()?`<a class="hgd-button primary" href="./admin.html">بازکردن پنل مدیریت</a>`:''}<div class="hgd-line"></div><div class="hgd-row">${button('تازه‌سازی نشست','reload-tab')}${button('رفتن به برنامه','back-to-app')}${button('خروج از این پنجره','close')}</div></section>
   <section class="hgd-card"><h4>پشتیبانی و داده‌ها</h4><p class="hgd-muted">پیام‌های پشتیبانی در ماژول مستقل باقی می‌مانند. برای پاسخ‌گویی کارکنان، نقش سمت سرور لازم است.</p><div class="hgd-row"><a class="hgd-button" href="./support-admin.html">صندوق پشتیبانی</a><a class="hgd-button" href="./index.html">برنامهٔ اصلی</a></div><div class="hgd-line"></div><p class="hgd-muted">یادداشت‌ها، کتاب شخصی و فلش‌کارت‌ها فقط در حساب خودت ذخیره می‌شوند؛ برای حذف حساب یا خروجی کامل داده‌ها باید روش رسمی سرویس احراز هویت و پشتیبان‌گیری اجرا شود.</p></section></div>`;
 }
 
@@ -444,6 +449,8 @@ async function actionHandler(name, el) {
     }
     if(name==='start-direct-chat') {const {data:id,error}=await supabase.rpc('create_direct_chat',{p_other_user_id:el.dataset.id});if(error)throw error;state.chatId=id;state.chatUserResults=[];await setTab('chats');return;}
     if(name==='close') {closeSuite();return;}
+    if(name==='back-to-app') {closeSuite();location.href='./index.html';return;}
+    if(name==='notifications') {await setTab('announcements');return;}
     if(name==='reload-tab') {await setTab(state.tab);return;}
     if(name==='select-topic') {state.topicId=el.dataset.id;await setTab('debates');return;}
     if(name==='debate-create-mode') {const f=$('#hgd-debate-create-form');if(f)f.hidden=!f.hidden;return;}

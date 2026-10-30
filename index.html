@@ -14,11 +14,15 @@
 </style>
 <style>html.hg-auth-checking body>.app{visibility:hidden!important}html.hg-auth-checking #toast{visibility:hidden!important}</style></head>
 <body><div class="app">
-<header class="topbar"><div class="brand"><div class="brandmark" aria-hidden="true">ر</div><div><h1>هم‌قدم</h1><small>همراه مسیر علم، مطالعه و رشد</small></div></div><div class="topactions"><button class="btn" data-act="go" data-page="home">⌂ خانه</button><button class="btn" data-act="go" data-page="search">⌕ جست‌وجو</button><button class="btn" data-act="go" data-page="settings">⚙ پشتیبان و تنظیمات</button></div></header>
+<header class="topbar"><div class="brand"><div class="brandmark" aria-hidden="true">ر</div><div><h1>هم‌قدم</h1><small>همراه مسیر علم، مطالعه و رشد</small></div></div><div class="topactions"><button class="btn" data-act="go" data-page="home">⌂ خانه</button><button class="btn" data-act="go" data-page="search">⌕ جست‌وجو</button><button class="btn" data-act="go" data-page="settings">⚙ پشتیبان و تنظیمات</button><a class="btn" href="./admin.html" id="admin-home-link" hidden>▣ پنل مدیریت</a></div></header>
 <div class="layout"><aside class="sidebar" aria-label="منوی اصلی"><div class="sidecap"><span>مسیر یادگیری</span><span>☘</span></div><nav class="navlist" id="nav"></nav><div class="sidefoot">🔒 اطلاعات این نسخه روی همین دستگاه ذخیره می‌شود. برای اطمینان، مرتباً پشتیبان بگیر.</div></aside><main class="main" id="main" tabindex="-1"></main></div>
 <div class="footer">هم‌قدم • مرحلهٔ پایهٔ احراز هویت و پروفایل سروری • بخش‌هایی از داده‌های قدیمی هنوز روی همین دستگاه ذخیره می‌شوند.</div></div><div id="toast" class="toast hide" role="status" aria-live="polite"></div>
 <script>
 'use strict';
+const openTabParam=new URLSearchParams(location.search).get('open');
+function openOnlineTab(tab){if(!['chats','announcements','study','quizzes','settings'].includes(tab))return;document.getElementById('hgd-chat-launcher')?.click();setTimeout(()=>document.querySelector('[data-hgd-tab="'+tab+'"]')?.click(),350)}
+if(openTabParam)window.addEventListener('load',()=>openOnlineTab(openTabParam));
+window.addEventListener('hgd:navigate',event=>openOnlineTab(event.detail?.tab));
 const STORE_KEY='rahe-talabegi-v1';
 const NAV=[['home','🏠','نمای امروز'],['planner','🗓','برنامه‌ریز'],['goals','⛰','قله‌ها و هدف‌ها'],['study','📚','مرکز مطالعه'],['rahdan','🪶','راه‌دانِ نحو و صرف'],['ethics','🌱','اخلاق و بازنگری'],['beliefs','🧭','عقاید و استدلال'],['media','📱','سواد رسانه‌ای'],['amr','🤝','امر به معروف'],['family','🏡','خانه و خانواده'],['unity','☪','وحدت و گفت‌وگو'],['foods','🍃','گیاهان و خوراکی‌ها'],['journal','📝','گزارش روزانه'],['sources','🔎','منابع و راستی‌آزمایی'],['support','💬','پشتیبانی'],['settings','⚙','تنظیمات و پشتیبان']];
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};

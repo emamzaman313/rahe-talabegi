@@ -15,7 +15,6 @@
 @media(prefers-reduced-motion:reduce){#hgd-suite-root *{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
 
 .hgd-attachment-form{margin-top:8px;border:1px dashed #c7dbd0;border-radius:13px;padding:10px;background:#f9fcf9}.hgd-poll-create{margin:8px 0 0;border:1px solid #dce8df;border-radius:12px;padding:10px;background:#fff}.hgd-poll-create summary{cursor:pointer;font-weight:800;font-size:12px;color:#27645a}.hgd-poll-card{border:1px solid #d6e8dc;border-radius:12px;padding:10px;background:#f8fcf8;display:grid;gap:8px}.hgd-poll-options{display:grid;gap:5px}.hgd-poll-option{display:flex;justify-content:space-between;gap:8px;align-items:center;width:100%;border:1px solid #ccded2;background:#fff;color:#2c5147;border-radius:8px;padding:8px;font:inherit;font-size:11px;text-align:right}.hgd-poll-option:disabled{background:#e7f3ea}.hgd-attachment{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px;border:1px solid #d6e8dc;border-radius:10px;background:#f8fcf8;font-size:11px}
-
 /* Occasion appearance is intentionally decorative, calm, and removable. */
 body.hgd-occasion-birth .topbar, body.hgd-occasion-martyrdom .topbar, body.hgd-occasion-religious .topbar{border-bottom:2px solid color-mix(in srgb,var(--hgd-accent) 45%,transparent)}
 body.hgd-occasion-birth .brandmark, body.hgd-occasion-martyrdom .brandmark, body.hgd-occasion-religious .brandmark{box-shadow:0 0 0 4px color-mix(in srgb,var(--hgd-accent) 16%,transparent),0 8px 26px color-mix(in srgb,var(--hgd-accent) 14%,transparent)}
@@ -23,6 +22,6 @@ body.hgd-occasion-birth .navitem.active, body.hgd-occasion-martyrdom .navitem.ac
 body.hgd-occasion-birth .card, body.hgd-occasion-martyrdom .card, body.hgd-occasion-religious .card{border-color:color-mix(in srgb,var(--hgd-accent) 14%,var(--line))}
 body.hgd-reduce-motion #hgd-suite-root *,body.hgd-reduce-motion *{scroll-behavior:auto!important;animation:none!important;transition:none!important}
 #hgd-suite-root .hgd-window{font-size:calc(14px * var(--font-scale,1))}
-
 .hgd-global-audio-dock{position:fixed;z-index:900;inset:auto 12px 12px auto;display:flex;align-items:center;gap:10px;max-width:min(92vw,520px);padding:10px 12px;border:1px solid #cfe2d5;border-radius:16px;background:var(--paper,#fff);box-shadow:0 10px 32px #193c2926;color:var(--navy,#27483b);font-size:12px}.hgd-global-audio-dock audio{width:min(320px,62vw);height:38px}.hgd-occasion-birth{--occasion-glow:1}.hgd-occasion-martyrdom{--occasion-glow:1}
 @media(max-width:600px){.hgd-global-audio-dock{inset:auto 8px 8px 8px;max-width:none;justify-content:space-between}.hgd-global-audio-dock audio{width:min(68vw,320px)}}
+.hgd-notification-button{border:1px solid #ffffff35;border-radius:11px;background:#ffffff12;color:#fff;padding:8px 11px;font:inherit;font-size:12px;cursor:pointer}.hgd-notification-button span{display:inline-grid;place-items:center;min-width:18px;height:18px;border-radius:99px;background:#f3c86e;color:#19373c;font-size:10px;font-weight:900}.hgd-notification{border-right:4px solid #3f83b5}.hgd-notification.read{border-right-color:#c9d7d0;opacity:.8}
