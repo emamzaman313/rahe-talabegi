@@ -9,7 +9,48 @@ const cors = {
   'Content-Type': 'application/json; charset=utf-8',
 };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
-const allowedRoles = new Set(['admin', 'support', 'chat_moderator', 'content_moderator', 'quiz_moderator']);
+const roleCatalog = [
+  { id:'admin',name:'مدیر برنامه',description:'دسترسی گسترده به پنل مدیریت و محتوای برنامه؛ فقط برای افراد کاملاً مورد اعتماد.',scopes:['*'] },
+  { id:'chat_moderator',name:'مدیر گفت‌وگوها',description:'رسیدگی به گزارش‌ها و محدودیت‌های چت و اتاق‌های عمومی.',scopes:['chat','public_rooms','chat_reports'] },
+  { id:'content_moderator',name:'ناظر محتوا',description:'رسیدگی به گزارش محتوایی، واژه‌های ممنوع و محتوای آموزشی.',scopes:['content_reports','forbidden_terms'] },
+  { id:'quiz_moderator',name:'مدیر آزمون‌ها',description:'مدیریت سؤال‌ها و انتشار آزمون‌ها.',scopes:['quizzes'] },
+  { id:'support',name:'پشتیبان کاربران',description:'پاسخ به درخواست‌های پشتیبانی و راهنمایی کاربران.',scopes:['support'] },
+  { id:'debate_moderator',name:'ناظر مباحثه',description:'رسیدگی به موضوع‌ها و گزارش‌های بخش مباحثه.',scopes:['debates','debate_reports'] },
+  { id:'group_moderator',name:'ناظر گروه‌ها',description:'رسیدگی به عضویت‌ها و گزارش‌های گروه‌های مطالعه.',scopes:['groups','group_reports'] },
+  { id:'announcement_manager',name:'مدیر اطلاعیه‌ها',description:'ساخت و زمان‌بندی اطلاعیه‌ها و اعلان‌ها.',scopes:['announcements'] },
+  { id:'theme_manager',name:'مدیر تم و مناسبت',description:'مدیریت تم‌ها، مناسبت‌ها و پس‌زمینه‌ها.',scopes:['themes','backgrounds'] },
+  { id:'study_manager',name:'مدیر محتوای مطالعه',description:'مدیریت ابزارهای مطالعه، آزمون و مرور درسی.',scopes:['study','quizzes'] },
+  { id:'report_reviewer',name:'رسیدگی‌کنندهٔ گزارش‌ها',description:'مشاهده و رسیدگی انسانی به گزارش‌های برنامه.',scopes:['reports'] },
+  { id:'notification_manager',name:'مدیر اعلان‌ها',description:'ساخت اعلان‌های درون‌برنامه‌ای و مسیرهای چندمرحله‌ای.',scopes:['notifications'] },
+  { id:'room_manager',name:'مدیر اتاق‌های عمومی',description:'ساخت اتاق و تنظیم عمومی/خصوصی بودن و امکان ارسال.',scopes:['public_rooms'] },
+  { id:'account_reviewer',name:'پشتیبان حساب‌ها',description:'مشاهدهٔ فهرست کاربران و ارجاع مشکل؛ بدون دسترسی حذف حساب.',scopes:['user_read'] },
+  { id:'safety_reviewer',name:'ناظر ایمنی',description:'بررسی گزارش‌های آزار، تهدید و محتوای زیان‌بار.',scopes:['safety_reports'] },
+  { id:'event_manager',name:'مدیر رویدادها',description:'مدیریت برنامه‌ها و رویدادهای مناسبتی.',scopes:['events'] },
+  { id:'book_curator',name:'مدیر کتابخانه',description:'مدیریت کتاب‌ها و اطلاعات منابع آموزشی.',scopes:['books'] },
+  { id:'profile_moderator',name:'ناظر نمایه‌ها',description:'رسیدگی به گزارش‌های مربوط به نام و تصویر نمایه.',scopes:['profile_reports'] },
+  { id:'notification_viewer',name:'مشاهده‌گر اعلان‌ها',description:'مشاهدهٔ گزارش تحویل اعلان بدون تغییر تنظیمات.',scopes:['notification_read'] },
+  { id:'audit_viewer',name:'مشاهده‌گر سوابق',description:'مشاهدهٔ سوابق مدیریتی بدون ویرایش.',scopes:['audit_read'] },
+  { id:'community_moderator',name:'ناظر جامعه',description:'رسیدگی به گزارش‌های عمومی جامعه و رفتار کاربران.',scopes:['community_reports'] },
+  { id:'chat_report_reviewer',name:'رسیدگی‌کنندهٔ گزارش چت',description:'مشاهده و تعیین نتیجهٔ گزارش‌های چت.',scopes:['chat_reports'] },
+  { id:'word_filter_manager',name:'مدیر پالایش واژه‌ها',description:'افزودن، خاموش یا حذف واژه‌های پالایش‌شده.',scopes:['forbidden_terms'] },
+  { id:'poll_manager',name:'مدیر نظرسنجی',description:'مدیریت نظرسنجی‌های گفتگو.',scopes:['polls'] },
+  { id:'study_group_manager',name:'مدیر گروه مطالعه',description:'مدیریت گروه‌های مطالعه و درخواست‌های عضویت.',scopes:['study_groups'] },
+  { id:'onboarding_helper',name:'راهنمای تازه‌واردها',description:'راهنمایی ثبت‌نام و تکمیل مراحل شروع کار.',scopes:['onboarding_support'] },
+  { id:'feedback_reviewer',name:'بررسی‌کنندهٔ بازخورد',description:'بررسی پیشنهادها و بازخوردهای کاربران.',scopes:['feedback'] },
+  { id:'privacy_reviewer',name:'رسیدگی‌کنندهٔ حریم خصوصی',description:'بررسی درخواست‌های مربوط به داده و حریم خصوصی.',scopes:['privacy_requests'] },
+  { id:'language_moderator',name:'ناظر زبان و ادب',description:'بررسی گزارش‌های توهین و گفتار نامناسب.',scopes:['language_reports'] },
+  { id:'content_curator',name:'ویراستار محتوا',description:'بازبینی و پیشنهاد اصلاح محتوای آموزشی.',scopes:['content_review'] },
+  { id:'analytics_viewer',name:'مشاهده‌گر آمار',description:'مشاهدهٔ آمار کلی، بدون دسترسی به متن پیام خصوصی.',scopes:['analytics_read'] },
+  { id:'theme_reviewer',name:'بازبین مناسبت‌ها',description:'بازبینی محتوای مناسبت پیش از انتشار.',scopes:['theme_review'] },
+  { id:'debate_host',name:'میزبان مباحثه',description:'مدیریت موضوع و نظم یک مباحثهٔ تعیین‌شده.',scopes:['debate_host'] },
+  { id:'room_host',name:'میزبان اتاق',description:'مدیریت گفت‌وگوی یک اتاق مشخص.',scopes:['room_host'] },
+  { id:'quiz_reviewer',name:'بازبین آزمون',description:'بازبینی آزمون‌ها پیش از انتشار، بدون مدیریت حساب.',scopes:['quiz_review'] },
+  { id:'accessibility_reviewer',name:'بازبین دسترس‌پذیری',description:'بررسی خوانایی و دسترس‌پذیری رابط.',scopes:['accessibility_review'] },
+  { id:'release_viewer',name:'مشاهده‌گر انتشار',description:'مشاهدهٔ وضعیت نسخه‌ها و انتشار برنامه.',scopes:['release_read'] },
+  { id:'trusted_helper',name:'همیار مورد اعتماد',description:'دسترسی محدود برای راهنمایی جامعه؛ بدون ابزار مدیریتی.',scopes:['community_help'] },
+  { id:'super_admin',name:'مدیر ارشد',description:'دسترسی کامل و حفاظت‌شده؛ از این فهرست قابل اعطا نیست.',scopes:['*'] },
+];
+const allowedRoles = new Set(roleCatalog.filter(r => !['admin','super_admin'].includes(r.id)).map(r => r.id));
 const scopes = new Set(['global', 'community', 'chat', 'debate', 'group', 'channel']);
 const moderation = new Set(['warning', 'mute', 'ban', 'kick']);
 const safe = (value: unknown, max = 1200) => String(value ?? '').replace(/\u0000/g, '').trim().slice(0, max);
@@ -51,6 +92,11 @@ Deno.serve(async (req) => {
   };
 
   try {
+    if (action === 'list_role_catalog') {
+      if (!isSuperAdmin) return json({ error: 'مشاهده و تخصیص نقش‌ها فقط برای مدیر ارشد مجاز است.' }, 403);
+      return json({ roles: roleCatalog.filter(r => !['admin','super_admin'].includes(r.id)) });
+    }
+
     if (action === 'list_users') {
       const page = Math.max(1, Math.min(10000, Number(body.page) || 1));
       const perPage = Math.max(1, Math.min(100, Number(body.per_page) || 50));
@@ -96,7 +142,7 @@ Deno.serve(async (req) => {
       if (!/^[0-9a-f-]{36}$/i.test(targetId)) return json({ error: 'شناسهٔ کاربر معتبر نیست.' }, 400);
       if (targetId === actor.id) return json({ error: 'مدیر ارشد نباید نقش خودش را از این پنل تغییر دهد.' }, 400);
       const requested = Array.isArray(body.roles) ? body.roles.map((r) => safe(r, 50)).filter(Boolean) : [];
-      if (requested.some((r) => !allowedRoles.has(r))) return json({ error: 'یک نقش درخواست‌شده مجاز نیست؛ super_admin فقط از مسیر امن خارج از پنل تنظیم می‌شود.' }, 400);
+      if (requested.some((r) => !allowedRoles.has(r))) return json({ error: 'یک نقش درخواست‌شده مجاز نیست؛ admin و super_admin فقط از مسیر امن خارج از پنل تنظیم می‌شوند.' }, 400);
       const { data: target, error: targetError } = await db.auth.admin.getUserById(targetId);
       if (targetError || !target.user) return json({ error: 'کاربر مقصد پیدا نشد.' }, 404);
       const oldMeta = (target.user.app_metadata || {}) as RoleMeta;
@@ -130,6 +176,32 @@ Deno.serve(async (req) => {
       const { error: noticeError } = await db.from('in_app_notifications').insert({ user_id: targetId, title: ban ? 'ورود به حساب موقتاً مسدود شد' : 'محدودیت ورود برداشته شد', body: `${reason}${ban ? ` (مدت: ${hours} ساعت)` : ''}`, kind: ban ? 'warning' : 'system', action_url: '/index.html?open=announcements', accent_color: ban ? '#b45309' : '#176b67', icon: ban ? '⛔' : '✅' });
       if (noticeError) throw noticeError;
       return json({ ok: true, banned: ban });
+    }
+
+    if (action === 'review_forbidden_attempt') {
+      if (!isSuperAdmin && !hasRole(actorMeta, ['content_moderator','chat_moderator'])) return json({ error: 'رسیدگی به واژه‌های ممنوع به نقش ناظر محتوا یا چت نیاز دارد.' }, 403);
+      const reportId = safe(body.report_id, 36);
+      const decision = safe(body.decision, 20);
+      const reason = safe(body.reason, 1200);
+      const hours = Number(body.duration_hours ?? 0);
+      if (!/^[0-9a-f-]{36}$/i.test(reportId) || !['ignore','warning','mute','ban'].includes(decision) || (decision !== 'ignore' && reason.length < 2) || !Number.isInteger(hours) || hours < 0 || hours > 8760 || (['mute','ban'].includes(decision) && hours < 1)) return json({ error: 'تصمیم یا مدت اقدام معتبر نیست.' }, 400);
+      const { data: report, error: reportError } = await db.from('forbidden_word_attempt_reports').select('id,user_id,term,attempted_text,created_at,status').eq('id',reportId).maybeSingle();
+      if (reportError) throw reportError;
+      if (!report || report.status !== 'new') return json({ error: 'گزارش پیدا نشد یا قبلاً رسیدگی شده است.' }, 404);
+      if (decision !== 'ignore') {
+        const starts = new Date(); const ends = decision === 'warning' ? null : new Date(starts.getTime() + hours * 3600000).toISOString();
+        const action = decision === 'warning' ? 'warning' : decision === 'mute' ? 'mute' : 'ban';
+        const { error: modError } = await db.from('user_moderation_actions').insert({ user_id: report.user_id, scope: 'chat', action, reason, starts_at: starts.toISOString(), ends_at: ends, created_by: actor.id });
+        if (modError) throw modError;
+        const labels: Record<string,string> = { warning:'اخطار از سوی مدیریت', mute:'سکوت موقت در گفت‌وگو', ban:'محدودیت موقت دسترسی' };
+        const detail = decision === 'warning' ? '' : ' (مدت: ' + hours + ' ساعت)';
+        const { error: noticeError } = await db.from('in_app_notifications').insert({ user_id: report.user_id, title: labels[decision], body: reason + detail, kind: 'warning', action_url: '/index.html?open=announcements' });
+        if (noticeError) throw noticeError;
+      }
+      const { error: updateError } = await db.from('forbidden_word_attempt_reports').update({ status: 'reviewed', reviewed_by: actor.id, review_action: decision, review_note: reason, reviewed_at: new Date().toISOString() }).eq('id', reportId);
+      if (updateError) throw updateError;
+      await audit('forbidden_word_attempt_reviewed','forbidden_word_attempt',reportId,reason,{decision,duration_hours:hours});
+      return json({ ok:true, decision });
     }
 
     if (action === 'erase_user_account') {
