@@ -159,7 +159,6 @@ async function connectNativeNotifications(userId) {
   }
 
   await connectPushNotifications(userId);
-
   const seenKey = `${LAST_NOTIFICATION_PREFIX}${userId}`;
   let query = supabase.from('in_app_notifications').select('id,title,body,action_url,created_at').eq('user_id', userId).is('read_at', null).order('created_at', { ascending: true }).limit(10);
   const lastSeen = localStorage.getItem(seenKey);
