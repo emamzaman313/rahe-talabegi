@@ -1,13 +1,15 @@
 import { BIDAYAT_AL_NAHW } from './bidayat-al-nahw-catalog.mjs';
+import { normalizeSearchText } from './text-search.mjs';
 import './bidayat-al-nahw-ui.css';
 
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
-const flatText = (value) => String(value ?? '').normalize('NFC').toLocaleLowerCase();
+const flatText = normalizeSearchText;
 let overlay;
 let searchInput;
 let countLabel;
 let detail;
 let selectedTopic = null;
+function searchPlaceholder(query){const mount=document.getElementById('bookSearchList');if(!mount)return;mount.innerHTML=query?'<p class="small muted">در حال جست‌وجوی متن کتاب…</p>':'';}
 
 function renderChapter(chapter, query) {
   const filtered = chapter.topics.filter((topic) => !query || flatText(`${topic.titleArabic} ${topic.titlePersian}`).includes(query));
@@ -55,6 +57,8 @@ function close() {
 }
 
 function mount() {
+  document.addEventListener('input',event=>{if(event.target.id==='searchQ'||event.target.id==='global-search')searchPlaceholder(event.target.value.trim());});
+  document.addEventListener('hgd:global-search',event=>{const q=String(event.detail?.query||'').trim();const mountPoint=document.getElementById('bookSearchList');if(mountPoint&&q)mountPoint.innerHTML='<h3>کتاب‌های برنامه</h3><p class="small muted">جست‌وجوی تمام‌متنِ کتاب صرف با آماده‌شدن متن قابل‌جست‌وجوی همین منبع فعال می‌شود؛ فایل PDF اسکن‌شدهٔ مرجع هنوز OCR نشده است.</p>';if(q&&/[\u0600-\u06ff]/.test(q)){const global=document.getElementById('global-search');if(global){global.setAttribute('lang','ar');global.dir='auto';}}});
   const actions = document.querySelector('.topbar .topactions');
   if (!actions || document.getElementById('hg-bidayat-launch')) return;
   const launch = document.createElement('button');
@@ -62,6 +66,8 @@ function mount() {
   launch.id = 'hg-bidayat-launch';
   launch.innerHTML = '<span class="hg-book-mark" aria-hidden="true">ق</span><span>کتاب بدایة النحو</span>';
   launch.setAttribute('aria-haspopup', 'dialog');
+  const globalSearch=document.getElementById('global-search');
+  if(globalSearch) globalSearch.addEventListener('input',()=>{if(!overlay.hidden){searchInput.value=globalSearch.value;renderCatalog();}});
   actions.prepend(launch);
 
   overlay = document.createElement('div');
@@ -80,6 +86,7 @@ function mount() {
   detail = overlay.querySelector('.hg-bidayat-topic-detail');
   launch.addEventListener('click', open);
   searchInput.addEventListener('input', renderCatalog);
+  window.addEventListener('hgd:global-search',event=>{const query=String(event.detail?.query||'');const active=document.getElementById('hg-bidayat-overlay');if(active&&!active.hidden){searchInput.value=query;renderCatalog();}});
   overlay.addEventListener('click', (event) => {
     if (event.target === overlay || event.target.closest('[data-hg-close]')) { close(); return; }
     const topicButton = event.target.closest('[data-hg-topic]');

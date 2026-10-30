@@ -11,7 +11,7 @@ import {
   trustedRole,
 } from './hamghadam-auth-utils.mjs';
 
-const PROFILE_COLUMNS = 'id,display_name,stage,free_minutes,study_style,created_at,updated_at';
+const PROFILE_COLUMNS = 'id,display_name,stage,free_minutes,study_style,selected_discussion_group_id,created_at,updated_at';
 const GATE_ID = 'hg-auth-gate';
 const AUTH_DEADLINE_MS = 20000;
 let user = null;
@@ -19,6 +19,7 @@ let profile = null;
 let mode = 'login';
 let pendingEmail = '';
 let pendingName = '';
+let pendingStage = '';
 let pendingMode = 'login';
 let deferSignInHydration = false;
 let busy = false;
@@ -93,7 +94,7 @@ function renderGate() {
   const showPassword = ['login', 'update', 'set-password'].includes(mode);
   const passwordLabel = mode === 'update' || mode === 'set-password' ? 'رمز عبور تازه' : 'رمز عبور';
   const form = isSupabaseConfigured ? `<form class="hg-form" id="hg-auth-form" novalidate>
-    ${mode === 'signup' ? `<div class="hg-field"><label for="hg-name">نام نمایشی (اختیاری)</label><input id="hg-name" name="display_name" type="text" maxlength="60" autocomplete="nickname" placeholder="مثلاً علی"></div>` : ''}
+    ${mode === 'signup' ? `<div class="hg-field"><label for="hg-name">نام نمایشی (اختیاری)</label><input id="hg-name" name="display_name" type="text" maxlength="60" autocomplete="nickname" placeholder="مثلاً علی"></div><div class="hg-field"><label for="hg-stage">پایهٔ تحصیلی</label><input id="hg-stage" name="stage" type="text" maxlength="60" required placeholder="مثلاً پایهٔ اول"></div>` : ''}
     ${mode !== 'update' && mode !== 'set-password' && mode !== 'verify' ? `<div class="hg-field"><label for="hg-email">ایمیل</label><input id="hg-email" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com" dir="ltr"></div>` : ''}
     ${mode === 'verify' ? `<input type="hidden" name="email" value="${escape(pendingEmail)}"><div class="hg-field"><label for="hg-code">کد تأیید</label><input id="hg-code" name="token" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9٠-٩۰-۹]{6,10}" minlength="6" maxlength="10" required dir="ltr" placeholder="12345678"></div>` : ''}
     ${showPassword ? `<div class="hg-field"><label for="hg-password">${passwordLabel}</label><input id="hg-password" name="password" type="password" autocomplete="${mode === 'update' || mode === 'set-password' ? 'new-password' : 'current-password'}" minlength="8" maxlength="128" required placeholder="حداقل ۸ نویسه" dir="ltr"></div>` : ''}
@@ -154,7 +155,7 @@ async function loadOrCreateProfile(authUser) {
   const seed = {
     id: authUser.id,
     display_name: normalizeDisplayName(authUser.user_metadata?.display_name, fallback.name || String(authUser.email || '').split('@')[0]),
-    stage: normalizeStage(fallback.stage, 'پایه یک'),
+    stage: normalizeStage(authUser.user_metadata?.stage, normalizeStage(fallback.stage, 'پایه یک')),
     free_minutes: normalizeFreeMinutes(fallback.freeMinutes, 60),
     study_style: normalizeStudyStyle(fallback.studyStyle, 'ترکیبی'),
   };
@@ -192,12 +193,25 @@ async function acceptSession(session) {
       profile = await loadOrCreateProfile(authUser);
       applyProfileToLegacyState(profile);
       ensureAccountBox();
+      void ensureDiscussionGroupSelection();
     } catch (error) {
       notice = `وارد حساب شدی، اما پروفایل سروری بارگذاری نشد: ${error?.message || 'خطای اتصال'}`;
       noticeType = 'warn';
       showLegacyToast(notice);
     }
   }
+}
+
+async function ensureDiscussionGroupSelection(){
+  if(!user||profile?.selected_discussion_group_id||document.getElementById('hg-discussion-onboarding'))return;
+  const {data:groups,error}=await supabase.from('discussion_groups').select('id,title,topic,max_members').eq('is_open',true).order('created_at',{ascending:true}).limit(100);
+  if(error){showLegacyToast('انتخاب گروه مباحثه بارگذاری نشد؛ در تنظیمات دوباره تلاش کن.');return;}
+  const {data:members,error:memberError}=await supabase.from('discussion_group_members').select('group_id');
+  if(memberError){showLegacyToast('ظرفیت گروه‌های مباحثه خوانده نشد.');return;}
+  const counts=new Map();for(const member of members||[])counts.set(member.group_id,(counts.get(member.group_id)||0)+1);
+  const root=document.createElement('div');root.id='hg-discussion-onboarding';root.dir='rtl';root.innerHTML=`<section role="dialog" aria-modal="true" aria-labelledby="hg-discussion-title"><h2 id="hg-discussion-title">گروه مباحثه‌ات را انتخاب کن</h2><p>پایهٔ ثبت‌شده: <b>${escape(profile?.stage||'پایهٔ شما')}</b>. برای ورود به فضای مباحثه، یکی از گروه‌های هم‌قدم را انتخاب کن.</p><div class="hg-discussion-list">${(groups||[]).map(group=>{const count=counts.get(group.id)||0;return `<article><div><b>${escape(group.title)}</b><p>${escape(group.topic||'مباحثهٔ هم‌پایه‌ها')}</p><small>${count.toLocaleString('fa-IR')} از ۳ عضو</small></div><button type="button" data-group-id="${escape(group.id)}" ${count>=3?'disabled':''}>${count>=3?'ظرفیت تکمیل':'انتخاب گروه'}</button></article>`}).join('')||'<p>فعلاً گروهی برای انتخاب آماده نیست؛ کمی بعد دوباره بررسی کن.</p>'}</div><p class="hg-discussion-status" aria-live="polite"></p></section>`;
+  document.body.append(root);
+  root.addEventListener('click',async event=>{const button=event.target.closest('[data-group-id]');if(!button||button.disabled)return;button.disabled=true;const status=root.querySelector('.hg-discussion-status');status.textContent='در حال ثبت عضویت…';try{const {data,error:joinError}=await supabase.rpc('select_discussion_group',{p_group_id:button.dataset.groupId});if(joinError)throw joinError;profile={...profile,selected_discussion_group_id:data};root.remove();showLegacyToast('به گروه مباحثه پیوستی؛ گروهت در اتاق‌های عمومی نمایش داده می‌شود.');}catch(error){status.textContent=error?.message||'عضویت ثبت نشد؛ گروه دیگری را انتخاب کن.';button.disabled=false;}});
 }
 
 function showLegacyToast(message) {
@@ -235,6 +249,7 @@ async function handleSubmit(form) {
   const email = String(data.get('email') || '').trim().toLowerCase();
   const password = String(data.get('password') || '');
   const name = normalizeDisplayName(data.get('display_name'), '');
+  const stage = normalizeStage(data.get('stage'), '');
   const token = normalizeOtp(data.get('token'));
   if (mode === 'verify' && !/^\d{6,10}$/.test(token)) return setNotice('کد باید بین ۶ تا ۱۰ رقم باشد.', 'error');
   if (!['update', 'set-password', 'verify'].includes(mode) && !email) return setNotice('ایمیل را وارد کن.', 'error');
@@ -244,9 +259,10 @@ async function handleSubmit(form) {
   renderGateIntoRoot();
   try {
     if (mode === 'signup') {
-      pendingEmail = email; pendingName = name; pendingMode = 'signup';
+      if(!stage) return setNotice('پایهٔ تحصیلی را وارد کن.', 'error');
+      pendingEmail = email; pendingName = name; pendingStage=stage; pendingMode = 'signup';
       const emailRedirectTo = `${location.origin}${location.pathname}`;
-      const { error } = await withDeadline(supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo, data: { display_name: name } } }), 'ارسال ایمیل تأیید');
+      const { error } = await withDeadline(supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true, emailRedirectTo, data: { display_name: name, stage } } }), 'ارسال ایمیل تأیید');
       if (error) throw error;
       mode = 'verify'; setNotice('ایمیل تأیید فرستاده شد. اگر کد می‌بینی، آن را وارد کن؛ اگر پیوند می‌بینی، روی آن بزن تا وارد شوی.', 'info');
     } else if (mode === 'login') {
