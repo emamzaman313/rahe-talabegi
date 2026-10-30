@@ -39,3 +39,8 @@ test('backup validator accepts an exported-shaped backup and rejects malformed d
   assert.equal(validate({ ...good, version:99 }), false);
   assert.equal(validate({ ...good, daily:[] }), false);
 });
+
+test('backup import listener is delegated because the file input is rendered only in settings', () => {
+  assert.match(nativeHtml, /document\.addEventListener\('change',e=>\{if\(e\.target\.id!=='importFile'\)return;[\s\S]*?restoreBackup\(f\)/);
+  assert.doesNotMatch(nativeHtml, /getElementById\('importFile'\)\.addEventListener/);
+});
