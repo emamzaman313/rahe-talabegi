@@ -1,5 +1,6 @@
 import './hamghadam-auth.css';
 import { supabase, isSupabaseConfigured } from './supabase-client.js';
+import { Capacitor } from '@capacitor/core';
 import { unregisterPushDevice } from './task-reminders.js';
 import {
   greetingName,
@@ -27,6 +28,74 @@ let busy = false;
 let notice = '';
 let noticeType = 'info';
 let lastHydratedUserId = null;
+let queuedWebPromoSession = null;
+let activeWebPromoKey = null;
+let webPromoPreviousFocus = null;
+let webPromoAppState = null;
+
+const ANDROID_APK_URL = 'https://github.com/emamzaman313/rahe-talabegi/releases/download/android-latest/hamghadam-android.apk';
+
+function closeWebAppPromo() {
+  document.getElementById('hg-web-app-promo')?.remove();
+  const app = document.querySelector('body > .app');
+  if (app && webPromoAppState) {
+    app.inert = webPromoAppState.inert;
+    if (webPromoAppState.ariaHidden === null) app.removeAttribute('aria-hidden');
+    else app.setAttribute('aria-hidden', webPromoAppState.ariaHidden);
+  }
+  webPromoAppState = null;
+  if (webPromoPreviousFocus?.isConnected && !webPromoPreviousFocus.closest('[hidden]')) {
+    webPromoPreviousFocus.focus?.({ preventScroll: true });
+  } else {
+    document.querySelector('body > .app main button:not([disabled]), body > .app main a[href]')?.focus?.({ preventScroll: true });
+  }
+  webPromoPreviousFocus = null;
+}
+
+function showWebAppPromo(session) {
+  if (Capacitor.isNativePlatform() || !session?.user) return;
+  const promoKey = `${session.user.id}:${session.expires_at || ''}`;
+  if (activeWebPromoKey === promoKey || document.getElementById('hg-web-app-promo')) return;
+  if (document.getElementById('hg-discussion-onboarding')) {
+    queuedWebPromoSession = session;
+    return;
+  }
+
+  queuedWebPromoSession = null;
+  activeWebPromoKey = promoKey;
+  webPromoPreviousFocus = document.activeElement;
+  const app = document.querySelector('body > .app');
+  if (app) {
+    webPromoAppState = { inert: app.inert, ariaHidden: app.getAttribute('aria-hidden') };
+    app.inert = true;
+    app.setAttribute('aria-hidden', 'true');
+  }
+
+  const overlay = document.createElement('div');
+  overlay.id = 'hg-web-app-promo';
+  overlay.dir = 'rtl';
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', 'hg-web-app-promo-title');
+  overlay.innerHTML = `<div class="hg-promo-orbit hg-promo-orbit-one" aria-hidden="true"></div><div class="hg-promo-orbit hg-promo-orbit-two" aria-hidden="true"></div><section class="hg-promo-card"><div class="hg-promo-art" aria-hidden="true"><span class="hg-promo-star star-one">✦</span><span class="hg-promo-star star-two">✧</span><span class="hg-promo-star star-three">✦</span><div class="hg-promo-moon"></div><div class="hg-promo-mountain mountain-back"></div><div class="hg-promo-mountain mountain-front"></div><div class="hg-promo-path"></div><div class="hg-promo-mark">هـ</div></div><div class="hg-promo-copy"><span class="hg-promo-kicker">هم‌قدم، همراه مسیر تو</span><h1 id="hg-web-app-promo-title">تجربه‌ای بهتر<br><span>در اپلیکیشن</span></h1><p>برای دسترسی آسان‌تر، اعلان‌های برنامه و همراهی پیوسته در مسیر یادگیری، نسخهٔ اندروید هم‌قدم را نصب کن.</p><div class="hg-promo-points"><span><i>✦</i> دسترسی سریع‌تر</span><span><i>◷</i> یادآوری‌های برنامه</span><span><i>▤</i> همراهی در مسیر مطالعه</span></div><div class="hg-promo-actions"><a class="hg-promo-download" href="${ANDROID_APK_URL}" aria-label="دانلود مستقیم برنامهٔ اندروید هم‌قدم">دانلود برنامه <span aria-hidden="true">↓</span></a><button class="hg-promo-web" type="button">فعلاً، ادامه در نسخهٔ وب</button></div><small class="hg-promo-note">هر زمان خواستی می‌توانی از همین سایت به برنامه برگردی.</small></div></section>`;
+  document.body.append(overlay);
+
+  const dismiss = () => closeWebAppPromo();
+  overlay.querySelector('.hg-promo-web').addEventListener('click', dismiss);
+  overlay.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') { event.preventDefault(); dismiss(); return; }
+    if (event.key !== 'Tab') return;
+    const items = [...overlay.querySelectorAll('a[href],button:not([disabled])')];
+    const first = items[0], last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  });
+  overlay.querySelector('.hg-promo-web').focus({ preventScroll: true });
+}
+
+document.addEventListener('hgd:discussion-group-selected', () => {
+  if (queuedWebPromoSession) showWebAppPromo(queuedWebPromoSession);
+});
 
 const $ = (selector, root = document) => root.querySelector(selector);
 const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' })[ch]);
@@ -175,11 +244,14 @@ async function loadOrCreateProfile(authUser) {
   return result.data;
 }
 
-async function acceptSession(session) {
+async function acceptSession(session, { showWebPromo = false } = {}) {
   if (!session?.user) {
     user = null;
     profile = null;
     lastHydratedUserId = null;
+    queuedWebPromoSession = null;
+    activeWebPromoKey = null;
+    closeWebAppPromo();
     mode = 'login';
     setGateOpen(true);
     renderGateIntoRoot();
@@ -203,8 +275,10 @@ async function acceptSession(session) {
       setGateOpen(true);
       renderGateIntoRoot();
       showLegacyToast(notice);
+      return;
     }
   }
+  if (showWebPromo) showWebAppPromo(session);
 }
 
 async function ensureDiscussionGroupSelection(){
@@ -276,7 +350,7 @@ async function handleSubmit(form) {
     } else if (mode === 'login') {
       const { data: loginData, error } = await withDeadline(supabase.auth.signInWithPassword({ email, password }), 'ورود به حساب');
       if (error) throw error;
-      await acceptSession(loginData?.session);
+      await acceptSession(loginData?.session, { showWebPromo: true });
     } else if (mode === 'verify') {
       const recoveryCode = pendingMode === 'recovery';
       deferSignInHydration = pendingMode === 'signup';
@@ -298,7 +372,7 @@ async function handleSubmit(form) {
         setGateOpen(true);
         setNotice('ایمیلت تأیید شد. حالا رمز ورودت را بساز.', 'info');
       } else {
-        await acceptSession(response.session);
+        await acceptSession(response.session, { showWebPromo: true });
         pendingEmail = ''; pendingName = '';
       }
     } else if (mode === 'reset') {
@@ -321,7 +395,7 @@ async function handleSubmit(form) {
       if (creatingPassword) {
         const { data: sessionData, error: sessionError } = await withDeadline(supabase.auth.getSession(), 'دریافت نشست ورود');
         if (sessionError) throw sessionError;
-        await acceptSession(sessionData?.session);
+        await acceptSession(sessionData?.session, { showWebPromo: true });
         pendingEmail = ''; pendingName = ''; pendingMode = 'login';
         deferSignInHydration = false;
       } else {
@@ -467,7 +541,7 @@ function mount() {
       setGateOpen(true); renderGateIntoRoot(); return;
     }
     // Do not await Supabase queries inside the auth callback; that can stall auth's internal lock.
-    setTimeout(() => void acceptSession(session), 0);
+    setTimeout(() => void acceptSession(session, { showWebPromo: event === 'SIGNED_IN' }), 0);
   });
 
   setGateOpen(true);

@@ -9,6 +9,7 @@ const suite = fs.readFileSync(path.join(root, 'src/hamghadam-suite.js'), 'utf8')
 const admin = fs.readFileSync(path.join(root, 'src/hamghadam-admin-console.js'), 'utf8');
 const edge = fs.readFileSync(path.join(root, 'supabase/functions/hamghadam-admin/index.ts'), 'utf8');
 const html = fs.readFileSync(path.join(root, 'admin.html'), 'utf8');
+const rankGuardMigration = fs.readFileSync(path.join(root, 'supabase/migrations/20261030201913_chat_rank_target_guard.sql'), 'utf8');
 
 test('occasion themes explicitly model birth and martyrdom and are time-window controlled', () => {
   assert.match(migration, /occasion_type in \('birth','martyrdom','religious','national','custom'\)/i);
@@ -17,6 +18,13 @@ test('occasion themes explicitly model birth and martyrdom and are time-window c
   assert.match(migration, /create policy hgd_occasion_admin_manage[\s\S]*private\.hgd_is_admin\(\)/i);
   assert.match(suite, /selectActiveOccasion/);
   assert.match(admin, /تم‌های مناسبتی شهادت و ولادت/);
+});
+
+test('custom chat ranks are limited to ordinary members in UI and enforced by the database', () => {
+  assert.match(suite, /\['owner','admin','moderator'\]\.includes\(m\.member_role\)\?'':button\('تغییر رتبه'/);
+  assert.match(rankGuardMigration, /select member_role into v_target_role[\s\S]*if v_target_role in \('owner','admin','moderator'\) then raise exception/i);
+  assert.match(rankGuardMigration, /insert into public\.in_app_notifications/);
+  assert.match(rankGuardMigration, /revoke all on function public\.set_chat_member_role\(uuid,uuid,text\) from public,anon/i);
 });
 test('occasion sound is optional and preview is tied to a direct user action', () => {
   assert.match(migration, /sound_key text check \(sound_key is null or sound_key in \('soft-chime','quiet-bell','none'\)\)/i);
