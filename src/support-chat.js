@@ -1,6 +1,7 @@
 import './support-chat.css';
 import './ai-assistant.js';
 import { supabase as sharedSupabase, isSupabaseConfigured } from './supabase-client.js';
+import { unregisterPushDevice } from './task-reminders.js';
 import { escapeHtml, formatTimestamp, isSupportAgent, normalizeMessage, statusLabel } from './support-utils.mjs';
 
 const CONFIGURED = isSupabaseConfigured;
@@ -242,6 +243,7 @@ async function logout() {
   renderSurface();
   await removeRealtime();
   try {
+    await unregisterPushDevice();
     const { error } = await db.auth.signOut();
     if (error) throw error;
     currentUser = null; currentConversation = null; selectedConversationId = null;

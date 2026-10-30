@@ -83,6 +83,9 @@ Deno.serve(async (req) => {
       const { data: row, error } = await db.from('user_moderation_actions').insert({ user_id: targetId, scope, action: kind, reason, starts_at: starts.toISOString(), ends_at: ends, created_by: actor.id }).select('id,user_id,scope,action,reason,starts_at,ends_at').single();
       if (error) throw error;
       await audit('moderation_action_created', 'user', targetId, reason, { moderation_id: row.id, scope, moderation_action: kind, ends_at: ends });
+      const duration = ends ? ` تا ${new Date(ends).toLocaleString('fa-IR')}` : ' بدون تاریخ پایان';
+      const { error: noticeError } = await db.from('in_app_notifications').insert({ user_id: targetId, title: 'اقدام مدیریتی دربارهٔ حساب شما', body: `نوع: ${kind} | محدوده: ${scope} | دلیل: ${reason}${duration}`, kind: 'warning', action_url: '/index.html?open=announcements', accent_color: '#b45309', icon: '⚠️' });
+      if (noticeError) throw noticeError;
       return json({ ok: true, moderation: row });
     }
 
@@ -121,6 +124,8 @@ Deno.serve(async (req) => {
       const { error } = await db.auth.admin.updateUserById(targetId, { ban_duration });
       if (error) throw error;
       await audit(ban ? 'auth_user_banned' : 'auth_user_unbanned', 'user', targetId, reason, { duration_hours: ban ? hours : 0 });
+      const { error: noticeError } = await db.from('in_app_notifications').insert({ user_id: targetId, title: ban ? 'ورود به حساب موقتاً مسدود شد' : 'محدودیت ورود برداشته شد', body: `${reason}${ban ? ` (مدت: ${hours} ساعت)` : ''}`, kind: ban ? 'warning' : 'system', action_url: '/index.html?open=announcements', accent_color: ban ? '#b45309' : '#176b67', icon: ban ? '⛔' : '✅' });
+      if (noticeError) throw noticeError;
       return json({ ok: true, banned: ban });
     }
 

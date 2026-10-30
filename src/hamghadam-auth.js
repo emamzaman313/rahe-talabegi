@@ -1,5 +1,6 @@
 import './hamghadam-auth.css';
 import { supabase, isSupabaseConfigured } from './supabase-client.js';
+import { unregisterPushDevice } from './task-reminders.js';
 import {
   greetingName,
   normalizeDisplayName,
@@ -369,6 +370,7 @@ async function logout() {
   if (!supabase || busy) return;
   busy = true;
   try {
+    await unregisterPushDevice();
     const { error } = await withDeadline(supabase.auth.signOut(), 'خروج از حساب');
     if (error) throw error;
   } catch (error) {

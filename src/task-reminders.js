@@ -1,5 +1,6 @@
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from './supabase-client.js';
 
 const STATE_KEY = 'rahe-talabegi-v1';
@@ -7,11 +8,15 @@ const ENABLED_KEY = 'rahe-talabegi-task-reminders';
 const IDS_KEY = 'rahe-talabegi-task-reminder-ids';
 const NATIVE_PROMPTED_KEY = 'rahe-talabegi-native-notification-prompted';
 const LAST_NOTIFICATION_PREFIX = 'rahe-talabegi-native-notification-seen:';
+const PUSH_TOKEN_KEY = 'rahe-talabegi-fcm-token';
 const MAX_AHEAD_DAYS = 30;
 let syncTimer;
 let browserTimers = new Map();
 let notificationChannel;
 let notificationUserId;
+let pushUserId;
+let pushListenersReady = false;
+let latestPushToken = localStorage.getItem(PUSH_TOKEN_KEY) || '';
 const shownNotificationIds = new Set();
 
 function readTasks() {
@@ -61,6 +66,10 @@ async function requestReminderPermission() {
   }
   localStorage.setItem(ENABLED_KEY, 'true');
   await syncReminders();
+  if (Capacitor.isNativePlatform() && supabase) {
+    const { data } = await supabase.auth.getSession();
+    if (data.session?.user?.id) await connectPushNotifications(data.session.user.id).catch((e) => console.warn('FCM registration failed:', e?.message));
+  }
   const button = document.getElementById('enable-task-reminders');
   if (button) button.textContent = 'خاموش‌کردن یادآوری';
   setStatus('یادآوری فعالیت‌های آینده فعال شد.');
@@ -150,6 +159,8 @@ async function connectNativeNotifications(userId) {
     await syncReminders();
   }
 
+  await connectPushNotifications(userId);
+
   const seenKey = `${LAST_NOTIFICATION_PREFIX}${userId}`;
   let query = supabase.from('in_app_notifications').select('id,title,body,action_url,created_at').eq('user_id', userId).is('read_at', null).order('created_at', { ascending: true }).limit(10);
   const lastSeen = localStorage.getItem(seenKey);
@@ -167,13 +178,56 @@ async function connectNativeNotifications(userId) {
     }).subscribe();
 }
 
+async function connectPushNotifications(userId) {
+  if (!Capacitor.isNativePlatform() || !supabase || !userId) return;
+  pushUserId = userId;
+  if (!pushListenersReady) {
+    pushListenersReady = true;
+    await PushNotifications.addListener('registration', ({ value }) => {
+      latestPushToken = String(value || '');
+      if (latestPushToken) localStorage.setItem(PUSH_TOKEN_KEY, latestPushToken);
+      if (pushUserId && latestPushToken) void supabase.rpc('register_push_device', { p_token: latestPushToken, p_platform: Capacitor.getPlatform() })
+        .then(({ error }) => { if (error) console.warn('Push device could not be linked:', error.message); });
+    });
+    await PushNotifications.addListener('registrationError', (error) => console.warn('FCM registration failed:', error?.error || 'unknown error'));
+    await PushNotifications.addListener('pushNotificationReceived', (notification) => {
+      void showNativeNotification({ id: notification.data?.notification_id || crypto.randomUUID(), title: notification.title, body: notification.body, action_url: notification.data?.action_url });
+    });
+    await PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => openNativeNotificationUrl(notification.data?.action_url));
+  }
+  let permission = await PushNotifications.checkPermissions();
+  if (permission.receive !== 'granted' && localStorage.getItem(NATIVE_PROMPTED_KEY) !== 'true') {
+    localStorage.setItem(NATIVE_PROMPTED_KEY, 'true');
+    permission = await PushNotifications.requestPermissions();
+  }
+  if (permission.receive === 'granted') {
+    await PushNotifications.register();
+    if (latestPushToken) {
+      const { error } = await supabase.rpc('register_push_device', { p_token: latestPushToken, p_platform: Capacitor.getPlatform() });
+      if (error) console.warn('Push device could not be linked:', error.message);
+    }
+  }
+}
+
+export async function unregisterPushDevice() {
+  if (supabase && pushUserId && latestPushToken) {
+    const { error } = await supabase.rpc('unregister_push_device', { p_token: latestPushToken });
+    if (error) console.warn('Push device could not be unlinked before sign out:', error.message);
+  }
+  pushUserId = null;
+}
+
+function openNativeNotificationUrl(value) {
+  const path = String(value || './index.html?open=announcements');
+  if (!path.startsWith('/') && !path.startsWith('./')) return;
+  const target = new URL(path.replace(/^\/+/, ''), new URL('./', location.href));
+  location.assign(target.href);
+}
+
 function startNativeNotifications() {
   if (!Capacitor.isNativePlatform() || !supabase) return;
   void LocalNotifications.addListener('localNotificationActionPerformed', ({ notification }) => {
-    const path = String(notification?.extra?.action_url || './index.html?open=announcements');
-    if (!path.startsWith('/') && !path.startsWith('./')) return;
-    const target = new URL(path.replace(/^\/+/, ''), new URL('./', location.href));
-    location.assign(target.href);
+    openNativeNotificationUrl(notification?.extra?.action_url);
   });
   void supabase.auth.getSession().then(({ data }) => connectNativeNotifications(data.session?.user?.id));
   supabase.auth.onAuthStateChange((_event, session) => {
@@ -181,6 +235,7 @@ function startNativeNotifications() {
       if (!session?.user?.id) {
         if (notificationChannel) void supabase.removeChannel(notificationChannel);
         notificationChannel = null; notificationUserId = null; shownNotificationIds.clear();
+        pushUserId = null;
       } else void connectNativeNotifications(session.user.id).catch((e) => console.warn('Mobile notification setup failed:', e?.message));
     });
   });
