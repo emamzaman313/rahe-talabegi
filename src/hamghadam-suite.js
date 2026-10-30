@@ -21,7 +21,7 @@ const errText = (e) => {
 
 const state = {
   user: null, session: null, prefs: null, occasions: [], activeOccasion: null,
-  features: {}, tab: 'themes', topicId: null, chatId: null, replyId: null,
+  features: {}, backgrounds: {}, tab: 'themes', topicId: null, chatId: null, replyId: null,
   topics: [], posts: [], chats: [], messages: [], chatUserResults: [], book: null, notes: [], flashcards: [], quizzes: [], globalAudio: null, searchRequest: 0,
   chatChannel: null, busy: false, origin: null,
 };
@@ -112,21 +112,24 @@ async function loadGlobalAudio() {
 
 async function loadUserBootstrap() {
   if (!supabase || !state.user) return;
-  const [{data:settings,error:settingsErr},{data:prefs,error:prefsErr},{data:occasions,error:occasionsErr},{data:audioSetting,error:audioErr}] = await Promise.all([
+  const [{data:settings,error:settingsErr},{data:prefs,error:prefsErr},{data:occasions,error:occasionsErr},{data:audioSetting,error:audioErr},{data:bgSetting,error:bgErr}] = await Promise.all([
     supabase.from('app_settings').select('setting_value').eq('setting_key','features').maybeSingle(),
     supabase.from('user_preferences').select('*').eq('user_id',state.user.id).maybeSingle(),
     supabase.from('occasion_themes').select('*').eq('enabled',true).lte('starts_at',new Date().toISOString()).gt('ends_at',new Date().toISOString()).order('priority',{ascending:false}).limit(10),
     supabase.from('app_settings').select('setting_value').eq('setting_key','global_audio').maybeSingle(),
+    supabase.from('app_settings').select('setting_value').eq('setting_key','page_backgrounds').maybeSingle(),
   ]);
   if (settingsErr && !/does not exist|schema cache/i.test(settingsErr.message || '')) throw settingsErr;
   if (prefsErr && !/does not exist|schema cache/i.test(prefsErr.message || '')) throw prefsErr;
   if (occasionsErr && !/does not exist|schema cache/i.test(occasionsErr.message || '')) throw occasionsErr;
   if (audioErr && !/does not exist|schema cache/i.test(audioErr.message || '')) throw audioErr;
+  if (bgErr && !/does not exist|schema cache/i.test(bgErr.message || '')) throw bgErr;
   state.features=settings?.setting_value || {};
   state.prefs=prefs || null;
   state.occasions=occasions || [];
   state.activeOccasion=state.prefs?.disable_occasion_themes ? null : selectActiveOccasion(state.occasions);
   state.globalAudio=audioSetting?.setting_value || null;
+  state.backgrounds=bgSetting?.setting_value || {};
   applyPreferences(); applyOccasionBanner(); applyGlobalAudio();
   $('#hgd-connection')?.replaceChildren(document.createTextNode('متصل به Supabase · '+(state.user.email || 'حساب واردشده')));
 }
@@ -205,6 +208,7 @@ async function setTab(tab) {
   if (!TAB_ITEMS.some((x)=>x[0]===tab)) tab='themes'; state.tab=tab;
   const root=getRoot(); $$('.hgd-tab',root).forEach((el)=>el.classList.toggle('active',el.dataset.hgdTab===tab));
   const content=$('#hgd-content',root); content.innerHTML='<div class="hgd-empty">در حال دریافت اطلاعات از سرور…</div>';
+  applyPageBackground(content,tab);
   if (!state.user) { renderUnauthed('ابتدا وارد حساب شو.'); return; }
   const featureKey = ({themes:'special_themes',debates:'debates',groups:'groups',study:'personal_books',flashcards:'quizzes',quizzes:'quizzes',announcements:'announcements'})[tab];
   if (tab==='chats' && !featureEnabled('community_chat') && !featureEnabled('private_chat')) { content.innerHTML=alertMarkup('هم چت خصوصی و هم گروه/کانال از طرف مدیریت غیرفعال شده‌اند.','warn')+empty('پیام‌رسان غیرفعال است','داده‌ها حذف نشده‌اند و پس از فعال‌سازی دوباره در دسترس خواهند بود.'); return; }
@@ -220,6 +224,16 @@ async function setTab(tab) {
     else if (tab==='announcements') await renderAnnouncements(content);
     else if (tab==='settings') await renderSettings(content);
   } catch (e) { content.innerHTML=alertMarkup(errText(e),'error')+empty('بارگذاری این بخش انجام نشد','بعد از بررسی اتصال و مجوزها دوباره تلاش کن.')+button('تلاش مجدد','reload-tab'); }
+}
+
+function applyPageBackground(content,tab) {
+  if (!content) return;
+  const path=state.backgrounds?.[tab] || state.backgrounds?.all;
+  if (!path || !supabase) { content.style.removeProperty('background-image'); content.style.removeProperty('background-size'); content.style.removeProperty('background-position'); content.style.removeProperty('background-repeat'); return; }
+  const url=supabase.storage.from('hamghadam-app-backgrounds').getPublicUrl(path).data.publicUrl;
+  const veil=document.body.classList.contains('dark')?'rgba(17,28,31,.76)':'rgba(255,255,255,.84)';
+  content.style.backgroundImage=`linear-gradient(${veil},${veil}),url("${url.replace(/["\\\\]/g,'')}")`;
+  content.style.backgroundSize='cover';content.style.backgroundPosition='center';content.style.backgroundRepeat='no-repeat';
 }
 
 async function renderThemes(root) {
@@ -253,14 +267,16 @@ async function renderDebates(root) {
 }
 
 async function renderDiscussionGroups(root) {
-  const [{data:groups,error:gError},{data:members,error:mError}] = await Promise.all([
+  const [{data:groups,error:gError},{data:members,error:mError},{data:elections,error:eError}] = await Promise.all([
     supabase.from('discussion_groups').select('id,title,topic,created_by,max_members,is_open,created_at').eq('is_open',true).order('created_at',{ascending:false}).limit(50),
     supabase.from('discussion_group_members').select('group_id,user_id,member_role,joined_at').eq('user_id',state.user.id),
+    supabase.rpc('list_my_discussion_group_elections'),
   ]);
-  if(gError)throw gError;if(mError)throw mError;
+  if(gError)throw gError;if(mError)throw mError;if(eError)throw eError;
   const my=new Map((members||[]).map(m=>[m.group_id,m]));
-  root.innerHTML=`<div class="hgd-heading"><div><h3>گروه سه‌نفرهٔ مباحثه</h3><p>عضویت سه‌نفره در سرور و به‌صورت اتمیک کنترل می‌شود؛ «مسئول بحث» را مالک گروه از میان اعضا تعیین می‌کند.</p></div></div>
-    <div class="hgd-grid two"><section class="hgd-card"><h4>ساخت گروه</h4><form class="hgd-form" data-hgd-form="create-discussion-group">${field('نام گروه','title','text','','required maxlength="100"')}${field('موضوع مورد بحث','topic','text','','maxlength="600"')}<button type="submit" class="hgd-button primary">ساخت گروه</button></form><div class="hgd-alert">هر گروه حداکثر سه عضو دارد. اگر ظرفیت پر شود، سرور درخواست عضو چهارم را رد می‌کند.</div></section><section class="hgd-card"><h4>گروه‌های قابل پیوستن</h4><div class="hgd-list">${groups?.length?groups.map(g=>{const m=my.get(g.id);return `<article class="hgd-item"><div class="hgd-item-main"><h4>${escapeHtml(g.title)}</h4><p>${escapeHtml(g.topic||'بدون توضیح')}</p><div class="hgd-item-foot"><span class="hgd-chip">ظرفیت ${fmtNum(g.max_members)} نفر</span>${m?`<span class="hgd-chip">${m.member_role==='discussion_leader'?'مسئول بحث':m.member_role==='owner'?'مالک':'عضو'}</span>`:button('پیوستن','join-discussion-group',`data-id="${escapeHtml(g.id)}"`,'soft')}</div></div>${m&&g.created_by===state.user.id?button('تنظیم مسئول','manage-discussion-leader',`data-id="${escapeHtml(g.id)}"`):''}</article>`}).join(''):empty('گروه فعالی نیست','می‌توانی اولین گروه سه‌نفره را ایجاد کنی.')}</div></section></div>`;
+  const electionMap=new Map((elections||[]).map(e=>[e.group_id,e]));
+  root.innerHTML=`<div class="hgd-heading"><div><h3>گروه سه‌نفرهٔ مباحثه</h3><p>وقتی هر سه عضو وارد گروه شوند، رأی‌گیری محرمانه برای انتخاب مسئول آغاز می‌شود. مدیر نتیجه را تأیید می‌کند.</p></div></div>
+    <div class="hgd-grid two"><section class="hgd-card"><h4>ساخت گروه</h4><form class="hgd-form" data-hgd-form="create-discussion-group">${field('نام گروه','title','text','','required maxlength="100"')}${field('موضوع مورد بحث','topic','text','','maxlength="600"')}<button type="submit" class="hgd-button primary">ساخت گروه</button></form><div class="hgd-alert">هر گروه حداکثر سه عضو دارد؛ با تکمیل ظرفیت، رأی‌گیری مسئول فعال می‌شود.</div></section><section class="hgd-card"><h4>گروه‌های قابل پیوستن</h4><div class="hgd-list">${groups?.length?groups.map(g=>{const m=my.get(g.id),e=electionMap.get(g.id),members=e?.members||[];const election=e?.election_status==='open'?`<div class="hgd-alert"><b>رأی محرمانهٔ مسئول مباحثه</b><p>انتخابت برای دیگر اعضا دیده نمی‌شود.${e.has_voted?' رأی ثبت شده؛ تا بسته‌شدن رأی‌گیری می‌توانی تغییرش بدهی.':''}</p><div class="hgd-row">${members.filter(x=>!x.is_me).map(x=>button(`رأی به ${escapeHtml(x.name)}`,'vote-discussion-leader',`data-group-id="${escapeHtml(g.id)}" data-candidate-id="${escapeHtml(x.id)}"`,'soft')).join('')}</div></div>`:e?.election_status==='pending_approval'?alertMarkup('رأی‌گیری تمام شد؛ نامزد منتظر تأیید مدیر است.'):e?.election_status==='approved'?alertMarkup(`مسئول تأییدشده: ${escapeHtml(e.candidate_name)}`):'';return `<article class="hgd-item"><div class="hgd-item-main"><h4>${escapeHtml(g.title)}</h4><p>${escapeHtml(g.topic||'بدون توضیح')}</p><div class="hgd-item-foot"><span class="hgd-chip">ظرفیت ${fmtNum(g.max_members)} نفر</span>${m?`<span class="hgd-chip">${m.member_role==='discussion_leader'?'مسئول بحث':m.member_role==='owner'?'مالک':'عضو'}</span>`:button('پیوستن','join-discussion-group',`data-id="${escapeHtml(g.id)}"`,'soft')}</div>${m?election:''}</div></article>`}).join(''):empty('گروه فعالی نیست','می‌توانی اولین گروه سه‌نفره را ایجاد کنی.')}</div></section></div>`;
 }
 
 async function loadChatList() {
@@ -457,6 +473,7 @@ async function actionHandler(name, el) {
     if(name==='select-topic') {state.topicId=el.dataset.id;await setTab('debates');return;}
     if(name==='debate-create-mode') {const f=$('#hgd-debate-create-form');if(f)f.hidden=!f.hidden;return;}
     if(name==='join-discussion-group') {const {error}=await supabase.rpc('join_discussion_group',{p_group_id:el.dataset.id});if(error)throw error;await setTab('groups');return;}
+    if(name==='vote-discussion-leader') {const {error}=await supabase.rpc('cast_discussion_group_leader_vote',{p_group_id:el.dataset.groupId,p_candidate_id:el.dataset.candidateId});if(error)throw error;await setTab('groups');return;}
     if(name==='manage-discussion-leader') {await manageLeader(el.dataset.id);return;}
     if(name==='chat-create-toggle') {const f=$('#hgd-chat-create');if(f)f.hidden=!f.hidden;return;}
     if(name==='join-public-chat') {const chat=state.chats.find(c=>c.id===el.dataset.id);if(!chat||chat.kind!=='channel'||chat.visibility!=='public')throw new Error('اتاق عمومی در دسترس نیست.');if(!chat.membership){const {error}=await supabase.rpc('join_chat_conversation',{p_conversation_id:chat.id});if(error)throw error;}state.chatId=chat.id;await setTab('chats');return;}
