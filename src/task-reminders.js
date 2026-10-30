@@ -14,6 +14,7 @@ let browserTimers = new Map();
 let notificationChannel;
 let notificationUserId;
 let pushUserId;
+let pushReadyUserId;
 let pushListenersReady = false;
 let latestPushToken = localStorage.getItem(PUSH_TOKEN_KEY) || '';
 const shownNotificationIds = new Set();
@@ -144,7 +145,8 @@ async function showNativeNotification(row) {
 }
 
 async function connectNativeNotifications(userId) {
-  if (!Capacitor.isNativePlatform() || !supabase || !userId || notificationUserId === userId) return;
+  if (!Capacitor.isNativePlatform() || !supabase || !userId) return;
+  if(notificationUserId===userId){if(Capacitor.getPlatform()==='android'&&pushReadyUserId!==userId){const ready=await connectPushNotifications(userId);if(ready)pushReadyUserId=userId;}return;}
   if (notificationChannel) { await supabase.removeChannel(notificationChannel); notificationChannel = null; }
   notificationUserId = userId;
 
@@ -158,7 +160,7 @@ async function connectNativeNotifications(userId) {
     await syncReminders();
   }
 
-  await connectPushNotifications(userId);
+  if(await connectPushNotifications(userId))pushReadyUserId=userId;
   const seenKey = `${LAST_NOTIFICATION_PREFIX}${userId}`;
   let query = supabase.from('in_app_notifications').select('id,title,body,action_url,created_at').eq('user_id', userId).is('read_at', null).order('created_at', { ascending: true }).limit(10);
   const lastSeen = localStorage.getItem(seenKey);
@@ -177,9 +179,9 @@ async function connectNativeNotifications(userId) {
 }
 
 async function connectPushNotifications(userId) {
-  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android' || !supabase || !userId) return;
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android' || !supabase || !userId) return false;
   const pushy = globalThis.Pushy;
-  if (!pushy) { console.warn('Pushy native bridge is unavailable; local and in-app notifications remain enabled.'); return; }
+  if (!pushy) { console.warn('Pushy native bridge is unavailable; local and in-app notifications remain enabled.'); return false; }
   pushUserId = userId;
   if (!pushListenersReady) {
     pushListenersReady = true;
@@ -193,7 +195,7 @@ async function connectPushNotifications(userId) {
     localStorage.setItem(NATIVE_PROMPTED_KEY, 'true');
     permission = await LocalNotifications.requestPermissions();
   }
-  if (permission.display !== 'granted') return;
+  if (permission.display !== 'granted') return false;
   pushy.toggleFCM(false);
   pushy.listen();
   await new Promise((resolve, reject) => pushy.register((error, token) => {
@@ -204,6 +206,7 @@ async function connectPushNotifications(userId) {
     void supabase.rpc('register_push_device', { p_token: latestPushToken, p_platform: Capacitor.getPlatform() })
       .then(({ error: linkError }) => linkError ? reject(linkError) : resolve(true));
   }));
+  return true;
 }
 
 export async function unregisterPushDevice() {
@@ -226,14 +229,17 @@ function startNativeNotifications() {
   void LocalNotifications.addListener('localNotificationActionPerformed', ({ notification }) => {
     openNativeNotificationUrl(notification?.extra?.action_url);
   });
-  void supabase.auth.getSession().then(({ data }) => connectNativeNotifications(data.session?.user?.id));
+  const attempt=()=>void supabase.auth.getSession().then(({data})=>connectNativeNotifications(data.session?.user?.id)).catch((e)=>{notificationUserId=null;console.warn('Mobile notification setup failed:',e?.message);});
+  attempt();
+  window.addEventListener('online',attempt);
+  setInterval(attempt,60000);
   supabase.auth.onAuthStateChange((_event, session) => {
     queueMicrotask(() => {
       if (!session?.user?.id) {
         if (notificationChannel) void supabase.removeChannel(notificationChannel);
         notificationChannel = null; notificationUserId = null; shownNotificationIds.clear();
-        pushUserId = null;
-      } else void connectNativeNotifications(session.user.id).catch((e) => console.warn('Mobile notification setup failed:', e?.message));
+        pushUserId = null;pushReadyUserId=null;
+      } else void connectNativeNotifications(session.user.id).catch((e) => {notificationUserId=null;pushUserId=null;console.warn('Mobile notification setup failed:', e?.message);});
     });
   });
 }
@@ -256,7 +262,7 @@ function mountReminderControl() {
   const card = document.createElement('section');
   card.className = 'card';
   card.style.marginTop = '13px';
-  card.innerHTML = `<h3>یادآوری برنامه</h3><p class="small">با اجازهٔ تو، فعالیت‌های ثبت‌شده تا ۳۰ روز آینده در زمان شروع برایت یادآوری می‌شوند.</p><button class="btn" type="button" id="enable-task-reminders">${localStorage.getItem(ENABLED_KEY)==='true'?'خاموش‌کردن یادآوری':'فعال‌کردن اعلان یادآوری'}</button><p class="small muted" id="task-reminder-status" aria-live="polite"></p>`;
+  card.innerHTML = `<h3>یادآوری برنامه</h3><p class="small">با اجازهٔ تو، فعالیت‌های ثبت‌شده تا ۳۰ روز آینده در زمان شروع برایت یادآوری می‌شوند.</p>${Capacitor.isNativePlatform()?'':'<p class="small muted">اعلان مستقیم روی گوشی فقط در نسخهٔ نصب‌شدهٔ اندروید فعال می‌شود؛ بازکردن سایت روی موبایل توکن Push نمی‌سازد.</p>'}<button class="btn" type="button" id="enable-task-reminders">${localStorage.getItem(ENABLED_KEY)==='true'?'خاموش‌کردن یادآوری':'فعال‌کردن اعلان یادآوری'}</button><p class="small muted" id="task-reminder-status" aria-live="polite"></p>`;
   anchor.closest('.card')?.before(card);
 }
 
