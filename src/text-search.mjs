@@ -15,6 +15,8 @@ export function normalizeSearchText(value) {
 export function searchBookPages(pages, query, limit = 80) {
   const q = normalizeSearchText(query);
   if (!q) return [];
+  const wholeWord = /^[\p{L}\p{N}]+$/u.test(q);
+  const isWordCharacter = (value) => Boolean(value) && /[\p{L}\p{N}]/u.test(value);
   const results = [];
   for (const page of pages || []) {
     const text = normalizeSearchText(page.text);
@@ -22,9 +24,15 @@ export function searchBookPages(pages, query, limit = 80) {
     while (results.length < limit) {
       const index = text.indexOf(q, from);
       if (index < 0) break;
+      const before = index > 0 ? text[index - 1] : '';
+      const after = text[index + q.length] || '';
+      if (wholeWord && (isWordCharacter(before) || isWordCharacter(after))) {
+        from = index + 1;
+        continue;
+      }
       const start = Math.max(0, index - 110);
-      const end = Math.min(String(page.text || '').length, index + q.length + 150);
-      results.push({ page: page.page, index, snippet: String(page.text || '').slice(start, end).replace(/\s+/g, ' ').trim() });
+      const end = Math.min(text.length, index + q.length + 150);
+      results.push({ page: page.page, index, snippet: text.slice(start, end).replace(/\s+/g, ' ').trim() });
       from = index + Math.max(1, q.length);
     }
     if (results.length >= limit) break;

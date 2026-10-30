@@ -9,7 +9,12 @@ let searchInput;
 let countLabel;
 let detail;
 let selectedTopic = null;
-function searchPlaceholder(query){const mount=document.getElementById('bookSearchList');if(!mount)return;mount.innerHTML=query?'<p class="small muted">در حال جست‌وجوی متن کتاب…</p>':'';}
+let sarfIndexPromise;
+let sarfSearchGeneration=0;
+let sarfMatches=[];
+let sarfShown=0;
+function renderSarfMatches(mount){const batch=sarfMatches.slice(sarfShown,sarfShown+60);sarfShown+=batch.length;const rows=batch.map(hit=>`<article class="item"><div class="between"><b>صفحهٔ PDF ${hit.page.toLocaleString('fa-IR')}</b><a class="btn small" href="${import.meta.env.BASE_URL}books/danesh-sarf.pdf#page=${hit.page}" target="_blank" rel="noopener">بازکردن صفحه</a></div><p class="small muted" dir="rtl" lang="ar">…${escapeHtml(hit.snippet)}…</p></article>`).join('');const previous=mount.querySelector('.sarf-results');if(previous)previous.insertAdjacentHTML('beforeend',rows);else mount.insertAdjacentHTML('beforeend',`<div class="stack sarf-results">${rows}</div>`);mount.querySelector('[data-sarf-more]')?.remove();if(sarfShown<sarfMatches.length)mount.insertAdjacentHTML('beforeend',`<button class="btn small" type="button" data-sarf-more>نمایش نتیجه‌های بیشتر (${(sarfMatches.length-sarfShown).toLocaleString('fa-IR')})</button>`);}
+async function searchSarf(query){const mount=document.getElementById('bookSearchList');if(!mount)return;const generation=++sarfSearchGeneration;const q=String(query||'').trim();if(q.length<2){mount.innerHTML=q?'<p class="small muted">برای جست‌وجوی کتاب دست‌کم دو نویسه وارد کن.</p>':'';return;}mount.innerHTML='<p class="small muted">در حال جست‌وجو در متن کتاب صرف…</p>';try{sarfIndexPromise ||= fetch(`${import.meta.env.BASE_URL}books/sarf-search-index.json`).then(response=>{if(!response.ok)throw new Error('index unavailable');return response.json();});const index=await sarfIndexPromise;if(generation!==sarfSearchGeneration||!document.getElementById('bookSearchList'))return;sarfMatches=searchBookPages(index.pages,q,10000);sarfShown=0;mount.innerHTML=`<div class="between"><div><h3>کتاب دانش صرف</h3><p class="small muted">${index.indexedPageCount.toLocaleString('fa-IR')} صفحهٔ قابل جست‌وجو از ${index.pageCount.toLocaleString('fa-IR')} صفحه · ${sarfMatches.length>=10000?'۱۰٬۰۰۰ نتیجه یا بیشتر':`${sarfMatches.length.toLocaleString('fa-IR')} نتیجه`}</p></div><a class="btn small" href="${import.meta.env.BASE_URL}books/danesh-sarf.pdf" target="_blank" rel="noopener">بازکردن کتاب کامل</a></div>`;if(!sarfMatches.length)mount.insertAdjacentHTML('beforeend','<p class="small muted">در متن قابل‌جست‌وجوی کتاب نتیجه‌ای پیدا نشد.</p>');else renderSarfMatches(mount);if(index.unindexedPages?.length)mount.insertAdjacentHTML('beforeend',`<p class="small muted">${index.unindexedPages.length.toLocaleString('fa-IR')} صفحه متن قابل‌استخراج ندارند و در جست‌وجو نیستند.</p>`);}catch(error){if(generation===sarfSearchGeneration)mount.innerHTML='<p class="small muted">فهرست کتاب بارگذاری نشد؛ اتصال را بررسی و دوباره جست‌وجو کن.</p>';console.warn('Sarf book index:',error);}}
 
 function renderChapter(chapter, query) {
   const filtered = chapter.topics.filter((topic) => !query || flatText(`${topic.titleArabic} ${topic.titlePersian}`).includes(query));
@@ -58,7 +63,8 @@ function close() {
 
 function mount() {
   document.addEventListener('input',event=>{if(event.target.id==='searchQ'||event.target.id==='global-search')searchPlaceholder(event.target.value.trim());});
-  document.addEventListener('hgd:global-search',event=>{const q=String(event.detail?.query||'').trim();const mountPoint=document.getElementById('bookSearchList');if(mountPoint&&q)mountPoint.innerHTML='<h3>کتاب‌های برنامه</h3><p class="small muted">جست‌وجوی تمام‌متنِ کتاب صرف با آماده‌شدن متن قابل‌جست‌وجوی همین منبع فعال می‌شود؛ فایل PDF اسکن‌شدهٔ مرجع هنوز OCR نشده است.</p>';if(q&&/[\u0600-\u06ff]/.test(q)){const global=document.getElementById('global-search');if(global){global.setAttribute('lang','ar');global.dir='auto';}}});
+  document.addEventListener('hgd:global-search',event=>{const q=String(event.detail?.query||'').trim();void searchSarf(q);if(q&&/[\u0600-\u06ff]/.test(q)){const global=document.getElementById('global-search');if(global){global.setAttribute('lang','ar');global.dir='auto';}}});
+  document.addEventListener('click',event=>{if(event.target.closest('[data-sarf-more]'))renderSarfMatches(document.getElementById('bookSearchList'));});
   const actions = document.querySelector('.topbar .topactions');
   if (!actions || document.getElementById('hg-bidayat-launch')) return;
   const launch = document.createElement('button');
