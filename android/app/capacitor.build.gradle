@@ -10,7 +10,8 @@ android {
 apply from: "../capacitor-cordova-android-plugins/cordova.variables.gradle"
 dependencies {
     implementation project(':capacitor-local-notifications')
-
+    implementation "me.pushy:sdk:1.0.118"
+    implementation "androidx.appcompat:appcompat:1.0.2"
 }
 
 
