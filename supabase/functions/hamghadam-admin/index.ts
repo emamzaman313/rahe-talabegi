@@ -106,6 +106,9 @@ Deno.serve(async (req) => {
       const { error } = await db.auth.admin.updateUserById(targetId, { app_metadata: nextMeta });
       if (error) throw error;
       await audit('user_roles_updated', 'user', targetId, reason, { before: oldMeta.roles || (oldMeta.role ? [oldMeta.role] : []), after: requested });
+      const rolesText = requested.length ? requested.join('، ') : 'نقش‌های مدیریتی شما برداشته شد';
+      const { error: noticeError } = await db.from('in_app_notifications').insert({ user_id: targetId, title: 'نقش حساب کاربری تغییر کرد', body: requested.length ? `نقش‌های تازهٔ شما: ${rolesText}. دلیل: ${reason}` : `${rolesText}. دلیل: ${reason}`, kind: 'system', action_url: '/index.html?open=announcements', accent_color: '#176b67', icon: '🏷️' });
+      if (noticeError) throw noticeError;
       return json({ ok: true, roles: [...new Set(requested)] });
     }
 

@@ -1,6 +1,6 @@
 -- Per-user device registrations remain invisible to normal clients.
 create table if not exists public.push_device_tokens (
-  token text primary key check (char_length(token) between 40 and 4096),
+  token text primary key check (char_length(token) between 8 and 4096),
   user_id uuid not null references auth.users(id) on delete cascade,
   platform text not null check (platform in ('android','ios')),
   created_at timestamptz not null default now(),
@@ -14,7 +14,7 @@ create or replace function public.register_push_device(p_token text,p_platform t
 returns boolean language plpgsql security definer set search_path = '' as $$
 begin
  if auth.uid() is null then raise exception 'ابتدا وارد حساب شو' using errcode='42501'; end if;
- if p_token is null or char_length(p_token) not between 40 and 4096 or p_platform not in ('android','ios') then raise exception 'توکن یا نوع دستگاه معتبر نیست'; end if;
+ if p_token is null or char_length(p_token) not between 8 and 4096 or p_platform not in ('android','ios') then raise exception 'توکن یا نوع دستگاه معتبر نیست'; end if;
  insert into public.push_device_tokens(token,user_id,platform,updated_at)
  values(p_token,auth.uid(),p_platform,now())
  on conflict(token) do update set user_id=excluded.user_id,platform=excluded.platform,updated_at=now();
@@ -116,7 +116,7 @@ $$;
 revoke all on function public.verify_push_dispatch_request(text,text) from public;
 grant execute on function public.verify_push_dispatch_request(text,text) to anon,authenticated,service_role;
 
--- Admin-authored notification journeys. Each advancement also enters the FCM delivery queue.
+-- Admin-authored notification journeys. Each advancement also enters the mobile push delivery queue.
 create table if not exists public.user_notification_sequences (
  id uuid primary key default gen_random_uuid(),
  user_id uuid not null references auth.users(id) on delete cascade,

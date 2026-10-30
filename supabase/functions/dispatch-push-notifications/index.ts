@@ -13,56 +13,20 @@ type PushJob = {
   action_url: string | null;
   attempts: number;
 };
-type ServiceAccount = { project_id: string; client_email: string; private_key: string };
-
-const base64url = (value: Uint8Array | string) => {
-  const bytes = typeof value === 'string' ? new TextEncoder().encode(value) : value;
-  let binary = '';
-  for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
-};
-
-async function googleAccessToken(account: ServiceAccount): Promise<string> {
-  const pem = account.private_key.replace(/\\n/g, '\n').replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, '');
-  const der = Uint8Array.from(atob(pem), (c) => c.charCodeAt(0));
-  const key = await crypto.subtle.importKey('pkcs8', der, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['sign']);
-  const now = Math.floor(Date.now() / 1000);
-  const unsigned = `${base64url(JSON.stringify({ alg: 'RS256', typ: 'JWT' }))}.${base64url(JSON.stringify({
-    iss: account.client_email,
-    scope: 'https://www.googleapis.com/auth/firebase.messaging',
-    aud: 'https://oauth2.googleapis.com/token',
-    iat: now,
-    exp: now + 3600,
-  }))}`;
-  const signature = new Uint8Array(await crypto.subtle.sign('RSASSA-PKCS1-v1_5', key, new TextEncoder().encode(unsigned)));
-  const assertion = `${unsigned}.${base64url(signature)}`;
-  const response = await fetch('https://oauth2.googleapis.com/token', {
+async function sendToDevice(apiKey: string, token: string, job: PushJob) {
+  const message = String(job.body || '').slice(0, 500);
+  const response = await fetch(`https://api.pushy.me/push?api_key=${encodeURIComponent(apiKey)}`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer', assertion }),
-  });
-  const result = await response.json();
-  if (!response.ok || !result.access_token) throw new Error(`Google OAuth ${response.status}: ${result.error || 'token exchange failed'}`);
-  return result.access_token as string;
-}
-
-async function sendToDevice(projectId: string, accessToken: string, token: string, job: PushJob) {
-  const data: Record<string, string> = { notification_id: job.notification_id };
-  if (job.action_url) data.action_url = job.action_url;
-  const response = await fetch(`https://fcm.googleapis.com/v1/projects/${encodeURIComponent(projectId)}/messages:send`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      message: {
-        token,
-        notification: { title: String(job.title || 'اعلان تازه از هم‌قدم').slice(0, 120), body: String(job.body || '').slice(0, 500) },
-        data,
-        android: { priority: 'HIGH', notification: { channel_id: 'default', sound: 'default' } },
-      },
+      to: token,
+      data: { message, title: String(job.title || 'اعلان تازه از هم‌قدم').slice(0, 120), notification_id: job.notification_id, action_url: job.action_url || '' },
+      time_to_live: 60 * 60 * 24 * 30,
     }),
   });
   const result = await response.json().catch(() => ({}));
-  return { ok: response.ok, status: response.status, code: result?.error?.details?.find?.((x: { errorCode?: string }) => x.errorCode)?.errorCode || result?.error?.status || result?.error?.message || 'FCM error' };
+  const invalid = Array.isArray(result?.info?.failed) && result.info.failed.includes(token);
+  return { ok: response.ok && result?.success === true && !invalid, code: invalid ? 'INVALID_TOKEN' : result?.code || result?.error || 'Pushy API error' };
 }
 
 Deno.serve(async (request) => {
@@ -84,25 +48,13 @@ Deno.serve(async (request) => {
   });
   if (verifyError || valid !== true) return json({ error: 'Invalid dispatch signature' }, 401);
 
-  const accountText = Deno.env.get('FCM_SERVICE_ACCOUNT_JSON');
-  if (!accountText) return json({ error: 'FCM_SERVICE_ACCOUNT_JSON is not configured' }, 503);
-  let account: ServiceAccount;
-  try { account = JSON.parse(accountText); } catch { return json({ error: 'FCM service account secret is malformed' }, 503); }
-  if (!account.project_id || !account.client_email || !account.private_key) return json({ error: 'FCM service account fields are incomplete' }, 503);
+  const pushyApiKey = Deno.env.get('PUSHY_SECRET_API_KEY');
+  if (!pushyApiKey) return json({ error: 'PUSHY_SECRET_API_KEY is not configured' }, 503);
 
   const admin = createClient(supabaseUrl, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data: jobs, error: claimError } = await admin.rpc('claim_push_delivery_jobs', { p_limit: 50 });
   if (claimError) return json({ error: 'Could not claim pending push jobs' }, 500);
   if (!Array.isArray(jobs) || jobs.length === 0) return json({ sent: 0, retried: 0 });
-
-  let accessToken: string;
-  try { accessToken = await googleAccessToken(account); }
-  catch (error) {
-    for (const job of jobs as PushJob[]) await admin.rpc('finish_push_delivery_job', {
-      p_notification_id: job.notification_id, p_success: false, p_error: String(error).slice(0, 450),
-    });
-    return json({ error: 'FCM OAuth failed', retried: jobs.length }, 502);
-  }
 
   let sent = 0;
   let retried = 0;
@@ -125,9 +77,9 @@ Deno.serve(async (request) => {
     const invalidTokens: string[] = [];
     for (const device of devices) {
       try {
-        const result = await sendToDevice(account.project_id, accessToken, device.token, job);
+        const result = await sendToDevice(pushyApiKey, device.token, job);
         if (result.ok) delivered++;
-        else if (['UNREGISTERED', 'INVALID_ARGUMENT', 'NOT_FOUND'].includes(result.code)) invalidTokens.push(device.token);
+        else if (['INVALID_TOKEN', 'NO_RECIPIENTS'].includes(result.code)) invalidTokens.push(device.token);
         else transientError = result.code;
       } catch (error) { transientError = String(error).slice(0, 300); }
     }
@@ -136,7 +88,7 @@ Deno.serve(async (request) => {
     await admin.rpc('finish_push_delivery_job', {
       p_notification_id: job.notification_id,
       p_success: finished,
-      p_error: transientError || (invalidTokens.length ? 'FCM registration token expired' : 'FCM did not accept the message'),
+      p_error: transientError || (invalidTokens.length ? 'Pushy registration token expired' : 'Pushy did not accept the message'),
     });
     if (finished) sent++; else retried++;
   }

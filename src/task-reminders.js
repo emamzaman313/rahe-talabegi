@@ -1,6 +1,5 @@
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
-import { PushNotifications } from '@capacitor/push-notifications';
 import { supabase } from './supabase-client.js';
 
 const STATE_KEY = 'rahe-talabegi-v1';
@@ -8,7 +7,7 @@ const ENABLED_KEY = 'rahe-talabegi-task-reminders';
 const IDS_KEY = 'rahe-talabegi-task-reminder-ids';
 const NATIVE_PROMPTED_KEY = 'rahe-talabegi-native-notification-prompted';
 const LAST_NOTIFICATION_PREFIX = 'rahe-talabegi-native-notification-seen:';
-const PUSH_TOKEN_KEY = 'rahe-talabegi-fcm-token';
+const PUSH_TOKEN_KEY = 'rahe-talabegi-pushy-token';
 const MAX_AHEAD_DAYS = 30;
 let syncTimer;
 let browserTimers = new Map();
@@ -68,7 +67,7 @@ async function requestReminderPermission() {
   await syncReminders();
   if (Capacitor.isNativePlatform() && supabase) {
     const { data } = await supabase.auth.getSession();
-    if (data.session?.user?.id) await connectPushNotifications(data.session.user.id).catch((e) => console.warn('FCM registration failed:', e?.message));
+    if (data.session?.user?.id) await connectPushNotifications(data.session.user.id).catch((e) => console.warn('Push registration failed:', e?.message));
   }
   const button = document.getElementById('enable-task-reminders');
   if (button) button.textContent = 'خاموش‌کردن یادآوری';
@@ -179,34 +178,33 @@ async function connectNativeNotifications(userId) {
 }
 
 async function connectPushNotifications(userId) {
-  if (!Capacitor.isNativePlatform() || !supabase || !userId) return;
+  if (!Capacitor.isNativePlatform() || Capacitor.getPlatform() !== 'android' || !supabase || !userId) return;
+  const pushy = globalThis.Pushy;
+  if (!pushy) { console.warn('Pushy native bridge is unavailable; local and in-app notifications remain enabled.'); return; }
   pushUserId = userId;
   if (!pushListenersReady) {
     pushListenersReady = true;
-    await PushNotifications.addListener('registration', ({ value }) => {
-      latestPushToken = String(value || '');
-      if (latestPushToken) localStorage.setItem(PUSH_TOKEN_KEY, latestPushToken);
-      if (pushUserId && latestPushToken) void supabase.rpc('register_push_device', { p_token: latestPushToken, p_platform: Capacitor.getPlatform() })
-        .then(({ error }) => { if (error) console.warn('Push device could not be linked:', error.message); });
+    pushy.setNotificationListener((payload) => {
+      void showNativeNotification({ id: payload?.notification_id || crypto.randomUUID(), title: payload?.title, body: payload?.message || payload?.body, action_url: payload?.action_url });
     });
-    await PushNotifications.addListener('registrationError', (error) => console.warn('FCM registration failed:', error?.error || 'unknown error'));
-    await PushNotifications.addListener('pushNotificationReceived', (notification) => {
-      void showNativeNotification({ id: notification.data?.notification_id || crypto.randomUUID(), title: notification.title, body: notification.body, action_url: notification.data?.action_url });
-    });
-    await PushNotifications.addListener('pushNotificationActionPerformed', ({ notification }) => openNativeNotificationUrl(notification.data?.action_url));
+    pushy.setNotificationClickListener((payload) => openNativeNotificationUrl(payload?.action_url));
   }
-  let permission = await PushNotifications.checkPermissions();
-  if (permission.receive !== 'granted' && localStorage.getItem(NATIVE_PROMPTED_KEY) !== 'true') {
+  let permission = await LocalNotifications.checkPermissions();
+  if (permission.display !== 'granted' && localStorage.getItem(NATIVE_PROMPTED_KEY) !== 'true') {
     localStorage.setItem(NATIVE_PROMPTED_KEY, 'true');
-    permission = await PushNotifications.requestPermissions();
+    permission = await LocalNotifications.requestPermissions();
   }
-  if (permission.receive === 'granted') {
-    await PushNotifications.register();
-    if (latestPushToken) {
-      const { error } = await supabase.rpc('register_push_device', { p_token: latestPushToken, p_platform: Capacitor.getPlatform() });
-      if (error) console.warn('Push device could not be linked:', error.message);
-    }
-  }
+  if (permission.display !== 'granted') return;
+  pushy.toggleFCM(false);
+  pushy.listen();
+  await new Promise((resolve, reject) => pushy.register((error, token) => {
+    if (error) { reject(error); return; }
+    latestPushToken = String(token || '');
+    if (!latestPushToken) { reject(new Error('Pushy device token was empty')); return; }
+    localStorage.setItem(PUSH_TOKEN_KEY, latestPushToken);
+    void supabase.rpc('register_push_device', { p_token: latestPushToken, p_platform: Capacitor.getPlatform() })
+      .then(({ error: linkError }) => linkError ? reject(linkError) : resolve(true));
+  }));
 }
 
 export async function unregisterPushDevice() {
