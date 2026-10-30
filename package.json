@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "vite build",
+    "index:sarf": "node scripts/index_sarf_book.mjs public/books/danesh-sarf.pdf",
     "preview": "vite preview --host 0.0.0.0",
     "test": "node --test",
     "android:add": "cap add android",
@@ -16,10 +17,12 @@
   "dependencies": {
     "@capacitor/android": "8.5.3",
     "@capacitor/core": "8.5.3",
+    "@capacitor/local-notifications": "^8.3.1",
     "@supabase/supabase-js": "2.118.0"
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.3",
+    "pdfjs-dist": "^6.4.299",
     "vite": "8.3.5"
   }
 }
