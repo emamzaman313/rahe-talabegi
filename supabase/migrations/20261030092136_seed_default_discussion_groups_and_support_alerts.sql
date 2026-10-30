@@ -43,4 +43,4 @@ $$;
 DROP TRIGGER IF EXISTS hgd_support_reply_notification ON public.support_messages;
 CREATE TRIGGER hgd_support_reply_notification
   AFTER INSERT ON public.support_messages
-  FOR EACH ROW EXECUTE FUNCTION public.hgd_notify_support_reply();
+  FOR EACH ROW EXECUTE FUNCTION private.hgd_notify_support_reply();
