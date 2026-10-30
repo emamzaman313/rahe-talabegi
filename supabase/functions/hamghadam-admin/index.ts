@@ -132,6 +132,37 @@ Deno.serve(async (req) => {
       return json({ ok: true, banned: ban });
     }
 
+    if (action === 'erase_user_account') {
+      if (!isSuperAdmin) return json({ error: 'پاک‌سازی کامل حساب فقط برای مدیر ارشد مجاز است.' }, 403);
+      const targetId = safe(body.user_id, 36);
+      if (!/^[0-9a-f-]{36}$/i.test(targetId) || targetId === actor.id) return json({ error: 'شناسهٔ کاربر نامعتبر است یا حذف حساب خودت مجاز نیست.' }, 400);
+      const { data: target, error: targetError } = await db.auth.admin.getUserById(targetId);
+      if (targetError || !target.user) return json({ error: 'کاربر پیدا نشد.' }, 404);
+      if (hasRole((target.user.app_metadata || {}) as RoleMeta, ['super_admin'])) return json({ error: 'حذف حساب مدیر ارشد از این مسیر مجاز نیست.' }, 403);
+
+      const { data: purge, error: purgeError } = await db.rpc('admin_erase_hamghadam_user', { p_actor_id: actor.id, p_user_id: targetId });
+      if (purgeError) throw purgeError;
+      const files = Array.isArray(purge?.files) ? purge.files as Array<{ bucket?: string; path?: string }> : [];
+      const groups = new Map<string, string[]>();
+      for (const file of files) {
+        if (!file.bucket || !file.path) continue;
+        const items = groups.get(file.bucket) || [];
+        items.push(file.path); groups.set(file.bucket, items);
+      }
+      for (const [bucket, paths] of groups) {
+        for (let i = 0; i < paths.length; i += 100) {
+          const { error } = await db.storage.from(bucket).remove(paths.slice(i, i + 100));
+          if (error) throw new Error(`حذف فایل‌های ${bucket} کامل نشد: ${error.message}`);
+        }
+      }
+      const { error: deleteError } = await db.auth.admin.deleteUser(targetId);
+      if (deleteError) throw deleteError;
+      // Keep an aggregate audit record without the erased user's ID, email, or authored content.
+      const { error: auditError } = await db.from('admin_audit_logs').insert({ actor_id: actor.id, action: 'user_data_erased', target_type: 'data_erasure', target_id: null, reason: '', details: { removed_files: files.length } });
+      if (auditError) console.warn('User erasure completed; aggregate audit insertion failed:', auditError.message);
+      return json({ ok: true, removed_files: files.length, can_register_again: true });
+    }
+
     if (action === 'set_conversation_active' || action === 'set_slow_mode') {
       if (!isSuperAdmin && !hasRole(actorMeta, ['chat_moderator'])) return json({ error: 'برای مدیریت گروه و کانال، نقش ناظر چت لازم است.' }, 403);
       const conversationId = safe(body.conversation_id, 36);
