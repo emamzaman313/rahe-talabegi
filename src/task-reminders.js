@@ -1,12 +1,18 @@
 import { Capacitor } from '@capacitor/core';
 import { LocalNotifications } from '@capacitor/local-notifications';
+import { supabase } from './supabase-client.js';
 
 const STATE_KEY = 'rahe-talabegi-v1';
 const ENABLED_KEY = 'rahe-talabegi-task-reminders';
 const IDS_KEY = 'rahe-talabegi-task-reminder-ids';
+const NATIVE_PROMPTED_KEY = 'rahe-talabegi-native-notification-prompted';
+const LAST_NOTIFICATION_PREFIX = 'rahe-talabegi-native-notification-seen:';
 const MAX_AHEAD_DAYS = 30;
 let syncTimer;
 let browserTimers = new Map();
+let notificationChannel;
+let notificationUserId;
+const shownNotificationIds = new Set();
 
 function readTasks() {
   try {
@@ -114,6 +120,72 @@ async function syncReminders() {
   else if ('Notification' in window && Notification.permission === 'granted') syncBrowserReminders(tasks);
 }
 
+async function showNativeNotification(row) {
+  if (!row?.id || !Capacitor.isNativePlatform() || !supabase) return;
+  const permission = await LocalNotifications.checkPermissions();
+  if (permission.display !== 'granted' || shownNotificationIds.has(row.id)) return;
+  shownNotificationIds.add(row.id);
+  if (shownNotificationIds.size > 100) shownNotificationIds.delete(shownNotificationIds.values().next().value);
+  await LocalNotifications.schedule({ notifications: [{
+    id: notificationId(`in-app-${row.id}`),
+    title: String(row.title || 'اعلان تازه از هم‌قدم').slice(0, 120),
+    body: String(row.body || '').slice(0, 500),
+    schedule: { at: new Date(Date.now() + 250) },
+    extra: { action_url: row.action_url || './index.html?open=announcements' },
+  }] });
+}
+
+async function connectNativeNotifications(userId) {
+  if (!Capacitor.isNativePlatform() || !supabase || !userId || notificationUserId === userId) return;
+  if (notificationChannel) { await supabase.removeChannel(notificationChannel); notificationChannel = null; }
+  notificationUserId = userId;
+
+  let permission = await LocalNotifications.checkPermissions();
+  if (permission.display !== 'granted' && localStorage.getItem(NATIVE_PROMPTED_KEY) !== 'true') {
+    localStorage.setItem(NATIVE_PROMPTED_KEY, 'true');
+    permission = await LocalNotifications.requestPermissions();
+  }
+  if (permission.display === 'granted') {
+    localStorage.setItem(ENABLED_KEY, 'true');
+    await syncReminders();
+  }
+
+  const seenKey = `${LAST_NOTIFICATION_PREFIX}${userId}`;
+  let query = supabase.from('in_app_notifications').select('id,title,body,action_url,created_at').eq('user_id', userId).is('read_at', null).order('created_at', { ascending: true }).limit(10);
+  const lastSeen = localStorage.getItem(seenKey);
+  query = lastSeen ? query.gt('created_at', lastSeen) : query.gte('created_at', new Date(Date.now() - 60 * 60 * 1000).toISOString());
+  const { data: pending, error } = await query;
+  if (error) console.warn('Unread app notifications could not be synchronized:', error.message);
+  for (const row of pending || []) {
+    await showNativeNotification(row).catch((e) => console.warn('Native notification failed:', e?.message));
+    localStorage.setItem(seenKey, row.created_at);
+  }
+
+  notificationChannel = supabase.channel(`mobile-notifications-${userId}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'in_app_notifications', filter: `user_id=eq.${userId}` }, ({ new: row }) => {
+      void showNativeNotification(row).then(() => localStorage.setItem(seenKey, row.created_at)).catch((e) => console.warn('Native notification failed:', e?.message));
+    }).subscribe();
+}
+
+function startNativeNotifications() {
+  if (!Capacitor.isNativePlatform() || !supabase) return;
+  void LocalNotifications.addListener('localNotificationActionPerformed', ({ notification }) => {
+    const path = String(notification?.extra?.action_url || './index.html?open=announcements');
+    if (!path.startsWith('/') && !path.startsWith('./')) return;
+    const target = new URL(path.replace(/^\/+/, ''), new URL('./', location.href));
+    location.assign(target.href);
+  });
+  void supabase.auth.getSession().then(({ data }) => connectNativeNotifications(data.session?.user?.id));
+  supabase.auth.onAuthStateChange((_event, session) => {
+    queueMicrotask(() => {
+      if (!session?.user?.id) {
+        if (notificationChannel) void supabase.removeChannel(notificationChannel);
+        notificationChannel = null; notificationUserId = null; shownNotificationIds.clear();
+      } else void connectNativeNotifications(session.user.id).catch((e) => console.warn('Mobile notification setup failed:', e?.message));
+    });
+  });
+}
+
 document.addEventListener('click', async (event) => {
   const button = event.target.closest('#enable-task-reminders');
   if (!button) return;
@@ -138,6 +210,7 @@ function mountReminderControl() {
 
 function start() {
   mountReminderControl();
+  startNativeNotifications();
   window.addEventListener('click', () => setTimeout(mountReminderControl, 0));
   syncTimer = setInterval(() => { mountReminderControl(); void syncReminders().catch((error) => console.warn('Reminder sync:', error)); }, 60_000);
   void syncReminders().catch((error) => console.warn('Reminder sync:', error));
