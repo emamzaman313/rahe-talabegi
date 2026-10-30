@@ -98,7 +98,16 @@ async function loadSession() {
   if (error) throw error;
   state.session = data.session || null; state.user = data.session?.user || null;
   if (state.user) await loadUserBootstrap();
+  else await loadGlobalAudio();
   addLaunchers();
+}
+
+async function loadGlobalAudio() {
+  if (!supabase) return;
+  const { data, error } = await supabase.from('app_settings').select('setting_value').eq('setting_key','global_audio').maybeSingle();
+  if (error) { console.warn('Global music could not be loaded:', errText(error)); return; }
+  state.globalAudio = data?.setting_value || null;
+  applyGlobalAudio();
 }
 
 async function loadUserBootstrap() {
@@ -166,9 +175,17 @@ function applyGlobalAudio() {
   if(!setting?.enabled||!setting?.path||!supabase)return;
   const url=supabase.storage.from('hamghadam-global-audio').getPublicUrl(setting.path).data.publicUrl;
   const dock=document.createElement('aside');dock.id='hgd-global-audio-dock';dock.className='hgd-global-audio-dock';dock.dir='rtl';
-  const audio=document.createElement('audio');audio.controls=true;audio.preload='none';audio.src=url;audio.setAttribute('aria-label','موسیقی سراسری هم‌قدم');
+  const audio=document.createElement('audio');audio.controls=true;audio.preload='auto';audio.src=url;audio.autoplay=true;audio.setAttribute('aria-label','موسیقی سراسری هم‌قدم');
   const label=document.createElement('span');label.textContent=setting.title||'موسیقی هم‌قدم';
-  dock.append(label,audio);document.body.append(dock);
+  const start=document.createElement('button');start.type='button';start.textContent='▶ شروع موسیقی';start.setAttribute('aria-label','شروع پخش موسیقی');
+  start.style.cssText='border:0;border-radius:10px;padding:8px 12px;background:#176b67;color:white;font:inherit;font-weight:700;cursor:pointer';
+  const attempt=()=>audio.play().then(()=>{start.hidden=true;}).catch(()=>{start.hidden=false;});
+  start.addEventListener('click',()=>{void attempt();});
+  audio.addEventListener('playing',()=>{start.hidden=true;});
+  audio.addEventListener('pause',()=>{if(!audio.ended)start.hidden=false;});
+  start.hidden=true;
+  dock.append(label,audio,start);document.body.append(dock);
+  void attempt();
 }
 
 async function openSuite(tab = 'themes') {
@@ -528,7 +545,7 @@ function registerAppHooks() {
     supabase.auth.onAuthStateChange((_event,session)=>{
       const previous=state.user?.id;state.session=session||null;state.user=session?.user||null;
       if(state.user&&previous!==state.user.id) void loadUserBootstrap().then(addLaunchers).catch(e=>console.warn('Hamghadam preference sync:',errText(e)));
-      else if(!state.user){state.prefs=null;state.activeOccasion=null;$('#hgd-admin-launcher')?.remove();$('#hgd-active-occasion-banner')?.remove();}
+      else if(!state.user){state.prefs=null;state.activeOccasion=null;$('#hgd-admin-launcher')?.remove();$('#hgd-active-occasion-banner')?.remove();void loadGlobalAudio();}
       addLaunchers();
     });
     void loadSession().then(consumeIncomingInvite).catch(e=>console.warn('Hamghadam suite bootstrap:',errText(e)));
