@@ -12,7 +12,7 @@ import {
   trustedRole,
 } from './hamghadam-auth-utils.mjs';
 
-const PROFILE_COLUMNS = 'id,display_name,stage,free_minutes,study_style,selected_discussion_group_id,created_at,updated_at';
+const PROFILE_COLUMNS = 'id,display_name,stage,stage_confirmed,avatar_path,free_minutes,study_style,selected_discussion_group_id,created_at,updated_at';
 const GATE_ID = 'hg-auth-gate';
 const AUTH_DEADLINE_MS = 20000;
 let user = null;
@@ -148,7 +148,8 @@ function ensureAccountBox() {
   }
   const role = trustedRole(user);
   const name = greetingName(profile, user);
-  box.innerHTML = `<span class="hg-account-chip" title="حساب متصل به سرور"><span class="hg-account-dot"></span><span class="hg-account-name">${escape(name)}</span><span class="hg-role">${escape(roleLabel(role))}</span></span><button type="button" class="hg-account-btn" data-hg-action="profile">پروفایل</button>${role === 'support' ? '<a class="hg-account-btn" href="./support-admin.html" rel="noopener">صندوق پشتیبانی</a>' : ''}<button type="button" class="hg-account-btn danger" data-hg-action="logout">خروج</button>`;
+  const avatar=profile?.avatar_path?supabase.storage.from('profile-avatars').getPublicUrl(profile.avatar_path).data.publicUrl:'';
+  box.innerHTML = `<span class="hg-account-chip" title="حساب متصل به سرور">${avatar?`<img class="hg-account-avatar" src="${escape(avatar)}" alt="تصویر ${escape(name)}">`:'<span class="hg-account-dot"></span>'}<span class="hg-account-name">${escape(name)}</span><span class="hg-role">${escape(roleLabel(role))}</span></span><button type="button" class="hg-account-btn" data-hg-action="profile">ویرایش پروفایل</button><button type="button" class="hg-account-btn" data-hg-action="photo">انتخاب عکس</button>${role === 'support' ? '<a class="hg-account-btn" href="./support-admin.html" rel="noopener">صندوق پشتیبانی</a>' : ''}<button type="button" class="hg-account-btn danger" data-hg-action="logout">خروج</button>`;
 }
 
 async function loadOrCreateProfile(authUser) {
@@ -159,6 +160,7 @@ async function loadOrCreateProfile(authUser) {
     stage: normalizeStage(authUser.user_metadata?.stage, normalizeStage(fallback.stage, 'پایه یک')),
     free_minutes: normalizeFreeMinutes(fallback.freeMinutes, 60),
     study_style: normalizeStudyStyle(fallback.studyStyle, 'ترکیبی'),
+    stage_confirmed: false,
   };
   let result = await supabase.from('profiles').select(PROFILE_COLUMNS).eq('id', authUser.id).maybeSingle();
   if (result.error) throw result.error;
@@ -186,7 +188,7 @@ async function acceptSession(session) {
   const authUser = session.user;
   const changed = lastHydratedUserId !== authUser.id;
   user = authUser;
-  setGateOpen(false);
+  setGateOpen(true);
   ensureAccountBox();
   if (changed) {
     lastHydratedUserId = authUser.id;
@@ -194,22 +196,30 @@ async function acceptSession(session) {
       profile = await loadOrCreateProfile(authUser);
       applyProfileToLegacyState(profile);
       ensureAccountBox();
-      void ensureDiscussionGroupSelection();
+      await ensureDiscussionGroupSelection();
     } catch (error) {
       notice = `وارد حساب شدی، اما پروفایل سروری بارگذاری نشد: ${error?.message || 'خطای اتصال'}`;
       noticeType = 'warn';
+      setGateOpen(true);
+      renderGateIntoRoot();
       showLegacyToast(notice);
     }
   }
 }
 
 async function ensureDiscussionGroupSelection(){
-  if(!user||profile?.selected_discussion_group_id||document.getElementById('hg-discussion-onboarding'))return;
-  const {data:groups,error}=await supabase.rpc('list_discussion_group_options');
-  if(error){showLegacyToast('انتخاب گروه مباحثه بارگذاری نشد؛ در تنظیمات دوباره تلاش کن.');return;}
-  const root=document.createElement('div');root.id='hg-discussion-onboarding';root.dir='rtl';root.innerHTML=`<section role="dialog" aria-modal="true" aria-labelledby="hg-discussion-title"><h2 id="hg-discussion-title">گروه مباحثه‌ات را انتخاب کن</h2><p>پایهٔ ثبت‌شده: <b>${escape(profile?.stage||'پایهٔ شما')}</b>. گروه‌ها بر اساس پایه و ظرفیت فعلی مرتب شده‌اند.</p><div class="hg-discussion-list">${(groups||[]).map(group=>{const count=Number(group.current_members)||0,limit=Number(group.max_members)||3;return `<article><div><b>${escape(group.title)}</b><p>${escape(group.topic||'مباحثهٔ هم‌پایه‌ها')}</p><small>${count.toLocaleString('fa-IR')} از ${limit.toLocaleString('fa-IR')} عضو${group.stage?` · ${escape(group.stage)}`:''}</small></div><button type="button" data-group-id="${escape(group.group_id)}" ${count>=limit?'disabled':''}>${count>=limit?'ظرفیت تکمیل':'انتخاب گروه'}</button></article>`}).join('')||'<p>فعلاً گروهی برای پایهٔ شما آماده نیست؛ مدیر برنامه باید گروهی بسازد.</p>'}</div><p class="hg-discussion-status" aria-live="polite"></p></section>`;
+  if(!user||document.getElementById('hg-discussion-onboarding'))return;
+  const root=document.createElement('div');root.id='hg-discussion-onboarding';root.dir='rtl';root.innerHTML='<section role="dialog" aria-modal="true" aria-labelledby="hg-discussion-title"><h2 id="hg-discussion-title">پیش از ورود، مسیرت را مشخص کن</h2><p>پایهٔ تحصیلی و عضویت در گروه مباحثه برای استفاده از برنامه لازم است.</p><div class="hg-onboarding-stage"></div><div class="hg-discussion-list"></div><p class="hg-discussion-status" aria-live="polite"></p></section>';
   document.body.append(root);
-  root.addEventListener('click',async event=>{const button=event.target.closest('[data-group-id]');if(!button||button.disabled)return;button.disabled=true;const status=root.querySelector('.hg-discussion-status');status.textContent='در حال ثبت عضویت…';try{const {data,error:joinError}=await supabase.rpc('select_discussion_group',{p_group_id:button.dataset.groupId});if(joinError)throw joinError;profile={...profile,selected_discussion_group_id:data};root.remove();showLegacyToast('به گروه مباحثه پیوستی؛ گروهت در اتاق‌های عمومی نمایش داده می‌شود.');}catch(error){status.textContent=error?.message||'عضویت ثبت نشد؛ گروه دیگری را انتخاب کن.';button.disabled=false;}});
+  const stageHost=root.querySelector('.hg-onboarding-stage'),list=root.querySelector('.hg-discussion-list'),status=root.querySelector('.hg-discussion-status');
+  const unlock=()=>{root.remove();setGateOpen(false);ensureAccountBox();document.dispatchEvent(new CustomEvent('hgd:discussion-group-selected',{detail:{groupId:profile.selected_discussion_group_id}}));};
+  const renderStage=()=>{stageHost.innerHTML=`<form class="hg-onboarding-form"><label for="hg-onboarding-stage">پایه یا مقطع تحصیلی</label><input id="hg-onboarding-stage" name="stage" maxlength="60" required value="${escape(profile?.stage||'')}" placeholder="مثلاً پایهٔ اول یا سطح دو"><button type="submit">تأیید پایه و دیدن گروه‌ها</button></form>`;list.innerHTML='';};
+  const loadGroups=async()=>{setGateOpen(true);status.textContent='در حال دریافت گروه‌های مناسب…';list.innerHTML='';try{const {data:groups,error}=await supabase.rpc('list_discussion_group_options');if(error)throw error;const available=(groups||[]).filter(g=>!g.stage||String(g.stage).trim().toLocaleLowerCase()===String(profile.stage).trim().toLocaleLowerCase());list.innerHTML=available.map(group=>{const count=Number(group.current_members)||0,limit=Number(group.max_members)||3;return `<article><div><b>${escape(group.title)}</b><p>${escape(group.topic||'مباحثهٔ هم‌پایه‌ها')}</p><small>${count.toLocaleString('fa-IR')} از ${limit.toLocaleString('fa-IR')} عضو${group.stage?` · ${escape(group.stage)}`:''}</small></div><button type="button" data-group-id="${escape(group.group_id)}" ${count>=limit?'disabled':''}>${count>=limit?'ظرفیت تکمیل':'پیوستن به گروه'}</button></article>`}).join('')||'<p>هنوز گروه خالی برای این پایه وجود ندارد؛ چند لحظهٔ دیگر دوباره تلاش کن.</p>';status.textContent='یک گروه هم‌پایه انتخاب کن تا ورود کامل شود.';}catch(error){status.textContent=`گروه‌ها بارگذاری نشدند: ${error?.message||'اتصال سرور'}`;list.innerHTML='<button type="button" data-onboarding-retry>تلاش دوباره</button>';}};
+  renderStage();
+  root.addEventListener('submit',async event=>{if(!event.target.matches('.hg-onboarding-form'))return;event.preventDefault();const stage=normalizeStage(new FormData(event.target).get('stage'),'');if(!stage){status.textContent='پایه یا مقطع را وارد کن.';return;}const submit=event.target.querySelector('button');submit.disabled=true;status.textContent='در حال ذخیرهٔ پایه…';try{const {data,error}=await supabase.from('profiles').update({stage,stage_confirmed:true}).eq('id',user.id).select(PROFILE_COLUMNS).single();if(error)throw error;profile=data;applyProfileToLegacyState(profile);if(profile.selected_discussion_group_id)unlock();else await loadGroups();}catch(error){status.textContent=`پایه ذخیره نشد: ${error?.message||'خطای سرور'}`;submit.disabled=false;}});
+  root.addEventListener('click',async event=>{if(event.target.closest('[data-onboarding-retry]')){await loadGroups();return;}const button=event.target.closest('[data-group-id]');if(!button||button.disabled)return;button.disabled=true;status.textContent='در حال ثبت عضویت…';try{const {data,error}=await supabase.rpc('select_discussion_group',{p_group_id:button.dataset.groupId});if(error)throw error;profile={...profile,selected_discussion_group_id:data};unlock();showLegacyToast('به گروه مباحثه پیوستی؛ حالا وارد هم‌قدم می‌شوی.');}catch(error){status.textContent=error?.message||'عضویت ثبت نشد؛ گروه دیگری را انتخاب کن.';button.disabled=false;}});
+  if(profile?.stage_confirmed&&profile?.selected_discussion_group_id){unlock();return;}
+  if(profile?.stage_confirmed)await loadGroups();
 }
 
 function showLegacyToast(message) {
@@ -355,7 +365,7 @@ async function editProfile() {
   if (stage.length > 60) return showLegacyToast('عنوان مرحله حداکثر ۶۰ نویسه است.');
   busy = true;
   try {
-    const { data, error } = await supabase.from('profiles').update({ display_name, stage }).eq('id', user.id).select(PROFILE_COLUMNS).single();
+    const { data, error } = await supabase.from('profiles').update({ display_name, stage, stage_confirmed:true }).eq('id', user.id).select(PROFILE_COLUMNS).single();
     if (error) throw error;
     profile = data;
     applyProfileToLegacyState(profile);
@@ -364,6 +374,12 @@ async function editProfile() {
   } catch (error) {
     showLegacyToast(`پروفایل ذخیره نشد: ${error?.message || 'خطای سرور'}`);
   } finally { busy = false; }
+}
+
+async function chooseProfilePhoto(){
+  if(!user||!supabase)return;
+  const input=document.createElement('input');input.type='file';input.accept='image/png,image/jpeg,image/webp';input.hidden=true;document.body.append(input);input.click();
+  input.addEventListener('change',async()=>{try{const file=input.files?.[0];if(!file)return;if(file.size>5*1024*1024||!['image/png','image/jpeg','image/webp'].includes(file.type)){showLegacyToast('عکس باید PNG، JPG یا WebP و حداکثر ۵ مگابایت باشد.');return;}const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg',path=`${user.id}/avatar.${ext}`;const {error:uploadError}=await supabase.storage.from('profile-avatars').upload(path,file,{upsert:true,contentType:file.type,cacheControl:'60'});if(uploadError)throw uploadError;const {data,error}=await supabase.from('profiles').update({avatar_path:path}).eq('id',user.id).select(PROFILE_COLUMNS).single();if(error)throw error;profile=data;ensureAccountBox();document.dispatchEvent(new CustomEvent('hgd:profile-updated',{detail:{userId:user.id,avatarPath:path}}));showLegacyToast('عکس پروفایل ذخیره شد و در گفت‌وگوها نمایش داده می‌شود.');}catch(error){showLegacyToast(`عکس ذخیره نشد: ${error?.message||'خطای سرور'}`);}finally{input.remove();}});
 }
 
 async function logout() {
@@ -383,7 +399,7 @@ async function syncPreferences(payload) {
   if (!supabase || !user) return;
   const update = {
     display_name: normalizeDisplayName(payload.display_name, ''),
-    stage: normalizeStage(payload.stage, 'پایه یک'),
+      stage: normalizeStage(payload.stage, 'پایه یک'),
     free_minutes: normalizeFreeMinutes(payload.free_minutes, 60),
     study_style: normalizeStudyStyle(payload.study_style, 'ترکیبی'),
   };
@@ -417,6 +433,7 @@ function mount() {
     if (modeButton && root.contains(modeButton)) { setMode(modeButton.dataset.hgMode); return; }
     const action = event.target.closest('[data-hg-action]')?.dataset.hgAction;
     if (action === 'profile') void editProfile();
+    else if (action === 'photo') void chooseProfilePhoto();
     else if (action === 'logout') void logout();
     else if (action === 'resend-code' && mode === 'verify' && pendingEmail) {
       busy = true; setNotice('در حال ارسال دوباره…');

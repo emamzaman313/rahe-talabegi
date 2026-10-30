@@ -31,8 +31,9 @@ test('chat UI discovers people by display name and allows named groups/channels 
   assert.match(suite, /data-hgd-form="search-chat-users"/);
   assert.match(suite, /rpc\('search_chat_users'/);
   assert.match(suite, /button\('شروع گفتگو','start-direct-chat'/);
-  assert.ok(suite.includes("isAdmin()?'<option value=\"channel\">کانال</option>':''"));
-  assert.ok(suite.includes("isAdmin()?'<option value=\"public\">کانال عمومی</option>':''"));
+  assert.match(suite, /<option value="channel">کانال<\/option>/);
+  assert.match(suite, /<option value="public">عمومی و قابل جست‌وجو<\/option>/);
+  assert.match(suite, /getPublicUrl\(u\.avatar_path\)/);
   assert.match(suite, /name="cover" type="file" accept="image\/png,image\/jpeg,image\/webp"/);
   assert.match(suite, /set_chat_conversation_cover/);
   assert.match(suite, /cover_path/);
