@@ -27,9 +27,9 @@ test('RTL message layout prevents horizontal clipping and preserves mixed-direct
 
 
 test('mobile public chat stays within the visible viewport, including when the keyboard opens', () => {
-  assert.match(styles, /#hc-public-chat\\{height:var\\(--hc-viewport-height,100dvh\\);max-height:var\\(--hc-viewport-height,100dvh\\);overflow:hidden/);
-  assert.match(styles, /#hc-public-chat \.hc-shell\\{height:100%;min-height:0;max-height:100%/);
-  assert.match(styles, /#hc-public-chat \.hc-message-list\\{flex:1 1 0;min-height:0/);
-  assert.match(chat, /window\\.visualViewport\\?\\.height \\|\\| window\\.innerHeight/);
-  assert.match(chat, /visualViewport\\.addEventListener\\('resize', syncChatViewport/);
+  assert.ok(styles.includes('#hc-public-chat{height:var(--hc-viewport-height,100dvh);max-height:var(--hc-viewport-height,100dvh);overflow:hidden'));
+  assert.ok(styles.includes('#hc-public-chat .hc-shell{height:100%;min-height:0;max-height:100%'));
+  assert.ok(styles.includes('#hc-public-chat .hc-message-list{flex:1 1 0;min-height:0'));
+  assert.ok(chat.includes('window.visualViewport?.height || window.innerHeight'));
+  assert.ok(chat.includes("window.visualViewport.addEventListener('resize', syncChatViewport"));
 });
