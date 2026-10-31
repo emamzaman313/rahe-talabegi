@@ -64,12 +64,10 @@ function showWebAppPromo(session) {
   queuedWebPromoSession = null;
   activeWebPromoKey = promoKey;
   webPromoPreviousFocus = document.activeElement;
-  const app = document.querySelector('body > .app');
-  if (app) {
-    webPromoAppState = { inert: app.inert, ariaHidden: app.getAttribute('aria-hidden') };
-    app.inert = true;
-    app.setAttribute('aria-hidden', 'true');
-  }
+  // Never disable the main application while displaying this optional promotion.
+  // The dialog itself is the interaction layer; locking .app made every app control
+  // inert if the promotion was interrupted or failed to dismiss.
+  webPromoAppState = null;
 
   const overlay = document.createElement('div');
   overlay.id = 'hg-web-app-promo';
@@ -272,9 +270,6 @@ async function acceptSession(session, { showWebPromo = false } = {}) {
       applyProfileToLegacyState(profile);
       ensureAccountBox();
       await ensureDiscussionGroupSelection();
-      // If onboarding was already completed or skipped, unlock the app immediately.
-      // Previously the gate could remain over the app even after successful sign-in.
-      if (!document.getElementById('hg-discussion-onboarding')) setGateOpen(false);
     } catch (error) {
       lastHydratedUserId = null;
       notice = `وارد حساب شدی، اما پروفایل سروری بارگذاری نشد: ${error?.message || 'خطای اتصال'}`;
@@ -285,6 +280,8 @@ async function acceptSession(session, { showWebPromo = false } = {}) {
       return;
     }
   }
+  // Repeated INITIAL_SESSION/SIGNED_IN callbacks must also leave the app unlocked.
+  if (profile && !document.getElementById('hg-discussion-onboarding')) setGateOpen(false);
   if (showWebPromo) showWebAppPromo(session);
 }
 
