@@ -94,3 +94,74 @@ html, body {
   }
 }
 #hg-discussion-onboarding{position:fixed;inset:0;z-index:10010;display:grid;place-items:center;overflow:auto;padding:16px;background:#06171ded;color:#f2f7f3;font-family:Tahoma,"Segoe UI",sans-serif}#hg-discussion-onboarding section{width:min(640px,100%);max-height:92vh;overflow:auto;padding:22px;border:1px solid #ffffff24;border-radius:20px;background:#102c33;box-shadow:0 24px 80px #0008}#hg-discussion-onboarding h2{margin:0 0 8px}#hg-discussion-onboarding p{line-height:1.9;color:#c4d5d1}#hg-discussion-onboarding .hg-onboarding-form{display:grid;gap:10px;margin:16px 0}#hg-discussion-onboarding input{padding:12px;border-radius:10px;border:1px solid #ffffff30;background:#071c24;color:#fff;font:inherit}#hg-discussion-onboarding button{padding:10px 14px;border:1px solid #6bd4be;border-radius:10px;background:#1d665b;color:#fff;font:inherit;cursor:pointer}#hg-discussion-onboarding button:disabled{opacity:.5}#hg-discussion-onboarding .hg-discussion-list{display:grid;gap:9px}#hg-discussion-onboarding .hg-discussion-list article{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid #ffffff20;border-radius:12px}#hg-discussion-onboarding .hg-discussion-list small{color:#b8cbc6}#hg-discussion-onboarding .hg-discussion-status{min-height:1.6em;color:#f3d28e}.hg-account-avatar{width:28px;height:28px;object-fit:cover;border-radius:50%}
+
+
+/* Robust viewport containment for the signed-in web-app promotion. */
+#hg-web-app-promo {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100vw;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-x: none;
+}
+#hg-web-app-promo *,
+#hg-web-app-promo *::before,
+#hg-web-app-promo *::after {
+  box-sizing: border-box;
+  min-width: 0;
+}
+#hg-web-app-promo .hg-promo-card {
+  width: 100%;
+  max-width: 980px;
+  min-width: 0;
+  min-height: 0;
+  grid-template-columns: minmax(0, .88fr) minmax(0, 1.12fr);
+}
+#hg-web-app-promo .hg-promo-copy {
+  min-width: 0;
+  width: 100%;
+}
+#hg-web-app-promo .hg-promo-copy > p,
+#hg-web-app-promo h1 {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 1024px) {
+  #hg-web-app-promo {
+    padding: 12px;
+    place-items: start center;
+  }
+  #hg-web-app-promo .hg-promo-card {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+    max-width: 560px;
+    margin: auto;
+    border-radius: 24px;
+  }
+  #hg-web-app-promo .hg-promo-art {
+    width: 100%;
+    min-width: 0;
+    min-height: 170px;
+    border-left: 0;
+    border-bottom: 1px solid #e4f3eb18;
+  }
+  #hg-web-app-promo .hg-promo-copy {
+    max-width: none;
+    padding: 22px;
+  }
+  #hg-web-app-promo .hg-promo-actions {
+    width: 100%;
+    max-width: none;
+  }
+}
+@media (max-width: 420px) {
+  #hg-web-app-promo .hg-promo-copy {
+    padding: 18px 16px 20px;
+  }
+  #hg-web-app-promo h1 {
+    font-size: clamp(27px, 8vw, 33px);
+  }
+  #hg-web-app-promo .hg-promo-points span {
+    white-space: normal;
+  }
+}
