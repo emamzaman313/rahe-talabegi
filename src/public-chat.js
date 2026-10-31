@@ -54,6 +54,18 @@ function mount() {
       </div>
     </div>`;
   document.body.append(root);
+  // Android WebView may keep the layout viewport behind the on-screen keyboard.
+  // Track the visual viewport so the chat frame and composer remain on-screen.
+  const syncChatViewport = () => {
+    const height = window.visualViewport?.height || window.innerHeight;
+    if (height > 0) root.style.setProperty('--hc-viewport-height', `${Math.round(height)}px`);
+  };
+  syncChatViewport();
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', syncChatViewport, { passive: true });
+    window.visualViewport.addEventListener('scroll', syncChatViewport, { passive: true });
+  }
+  window.addEventListener('resize', syncChatViewport, { passive: true });
   root.addEventListener('click', (e) => {
     const suiteLink=e.target.closest('[data-hc-suite]');if(suiteLink){void closeChat().then(()=>window.dispatchEvent(new CustomEvent('hgd:open-tab',{detail:{tab:suiteLink.dataset.hcSuite}})));return;}
     const a = e.target.closest('[data-hc]');
