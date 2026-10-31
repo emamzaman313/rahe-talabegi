@@ -311,10 +311,23 @@ function showLegacyToast(message) {
 function renderGateIntoRoot() {
   const root = document.getElementById(GATE_ID);
   if (!root) return;
+
+  // Keep entered values when the auth gate is re-rendered during a request.
+  const previousValues = new Map();
+  root.querySelectorAll('[name]').forEach((field) => {
+    if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement) {
+      previousValues.set(field.name, field.value);
+    }
+  });
+
   root.innerHTML = renderGate();
   root.hidden = false;
+  root.querySelectorAll('[name]').forEach((field) => {
+    if (previousValues.has(field.name)) field.value = previousValues.get(field.name);
+  });
+
   const email = $('#hg-email', root);
-  if (email && user?.email) email.value = user.email;
+  if (email && user?.email && !email.value) email.value = user.email;
 }
 
 function setMode(next) {
@@ -420,7 +433,10 @@ async function handleSubmit(form) {
     setNotice(friendly, 'error');
   } finally {
     busy = false;
-    if (document.getElementById(GATE_ID) && !user) renderGateIntoRoot();
+    // Profile hydration can fail after Supabase has already created a session.
+    // Release the submit control whenever the authentication gate is still visible.
+    const gate = document.getElementById(GATE_ID);
+    if (gate && !gate.hidden) renderGateIntoRoot();
   }
 }
 
