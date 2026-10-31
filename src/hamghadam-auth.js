@@ -170,7 +170,7 @@ function renderGate() {
     ${showPassword ? `<div class="hg-field"><label for="hg-password">${passwordLabel}</label><input id="hg-password" name="password" type="password" autocomplete="${mode === 'update' || mode === 'set-password' ? 'new-password' : 'current-password'}" minlength="8" maxlength="128" required placeholder="حداقل ۸ نویسه" dir="ltr"></div>` : ''}
     ${notice ? `<div class="hg-alert ${escape(noticeType)}" role="status" aria-live="polite">${escape(notice)}</div>` : ''}
     <button class="hg-submit" type="submit" ${busy ? 'disabled' : ''}><span>${busy ? 'در حال انجام…' : submit}</span><span aria-hidden="true">↙</span></button>
-    <div class="hg-form-row">${mode === 'login' ? `<button class="hg-link" type="button" data-hg-mode="signup">حساب ندارم؛ ثبت‌نام</button><button class="hg-link" type="button" data-hg-mode="reset">رمزم را فراموش کرده‌ام</button>` : mode === 'signup' ? `<button class="hg-link" type="button" data-hg-mode="login">حساب دارم؛ ورود</button>` : mode === 'verify' ? `<button class="hg-link" type="button" data-hg-action="resend-code">ارسال دوبارهٔ کد</button><button class="hg-link" type="button" data-hg-mode="${escape(pendingMode === 'recovery' ? 'reset' : pendingMode || 'login')}">تغییر ایمیل</button>` : mode === 'update' ? `<button class="hg-link" type="button" data-hg-mode="login">لغو</button>` : `<button class="hg-link" type="button" data-hg-mode="login">بازگشت به ورود</button>`}<button class="hg-link" type="button" data-hg-action="refresh" aria-label="بارگذاری دوباره صفحه ورود">↻ رفرش و تلاش مجدد</button></div>
+    <div class="hg-form-row">${mode === 'login' ? `<button class="hg-link" type="button" data-hg-mode="signup">حساب ندارم؛ ثبت‌نام</button><button class="hg-link" type="button" data-hg-mode="reset">رمزم را فراموش کرده‌ام</button>` : mode === 'signup' ? `<button class="hg-link" type="button" data-hg-mode="login">حساب دارم؛ ورود</button>` : mode === 'verify' ? `<button class="hg-link" type="button" data-hg-action="resend-code">ارسال دوبارهٔ کد</button><button class="hg-link" type="button" data-hg-mode="${escape(pendingMode === 'recovery' ? 'reset' : pendingMode || 'login')}">تغییر ایمیل</button>` : mode === 'update' ? `<button class="hg-link" type="button" data-hg-mode="login">لغو</button>` : `<button class="hg-link" type="button" data-hg-mode="login">بازگشت به ورود</button>`}</div>
   </form>` : `<div class="hg-alert warn" role="status">اتصال امن هنوز در تنظیمات ساخت وب/اندروید تعریف نشده است. تا زمان تنظیم نشانی پروژه و کلید عمومی Supabase، ورود فعال نمی‌شود.</div><ol class="hg-setup-list"><li>نشانی پروژه را با متغیر <code>VITE_SUPABASE_URL</code> تنظیم کن.</li><li>کلید عمومی را با متغیر <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> تنظیم کن.</li><li>برنامه را دوباره build کن. کلید secret یا <code>service_role</code> را هرگز داخل اپ قرار نده.</li></ol>`;
 
   return `<div class="hg-shell"><section class="hg-story" aria-label="معرفی هم‌قدم">
@@ -182,6 +182,7 @@ function renderGate() {
     <div class="hg-benefits"><div class="hg-benefit"><i>◷</i><b>برنامه و هدف</b><span>قدم‌های کوچک و برنامهٔ قابل تنظیم</span></div><div class="hg-benefit"><i>ق</i><b>نحو و صرف</b><span>تمرین و مرور علمی با توجه به کتاب درسی</span></div><div class="hg-benefit"><i>▤</i><b>کتاب و مطالعه</b><span>ادامهٔ مسیر یادگیری به‌تدریج تکمیل می‌شود</span></div><div class="hg-benefit"><i>✦</i><b>همفکری و پشتیبانی</b><span>ارتباط با حساب و نشست معتبر</span></div></div>
   </section><section class="hg-auth-card" aria-labelledby="hg-auth-title">
     <div class="hg-card-top"><div><h2 id="hg-auth-title">${title}</h2><p>${subtitle}</p></div><div class="hg-card-emblem" aria-hidden="true">✧</div></div>
+    <div class="hg-refresh-row"><button class="hg-refresh-button" type="button" data-hg-action="refresh" aria-label="بارگذاری دوباره صفحه ورود">↻ رفرش صفحه و تلاش مجدد</button></div>
     ${form}
     <div class="hg-card-bottom">ایمیل تأیید حاوی کد یا پیوند ورود است؛ حساب تنها پس از تأیید مالکیت ایمیل وارد برنامه می‌شود.</div>
     <div class="hg-privacy"><span>◈</span><div>پروفایل پایه به سرور همگام می‌شود. داده‌های قدیمی برنامه‌ریز که هنوز منتقل نشده‌اند، روی همین دستگاه باقی می‌مانند؛ این مرحله آن‌ها را خودکار آپلود نمی‌کند.</div></div>
@@ -271,6 +272,9 @@ async function acceptSession(session, { showWebPromo = false } = {}) {
       applyProfileToLegacyState(profile);
       ensureAccountBox();
       await ensureDiscussionGroupSelection();
+      // If onboarding was already completed or skipped, unlock the app immediately.
+      // Previously the gate could remain over the app even after successful sign-in.
+      if (!document.getElementById('hg-discussion-onboarding')) setGateOpen(false);
     } catch (error) {
       lastHydratedUserId = null;
       notice = `وارد حساب شدی، اما پروفایل سروری بارگذاری نشد: ${error?.message || 'خطای اتصال'}`;
@@ -330,6 +334,11 @@ function renderGateIntoRoot() {
 
   const email = $('#hg-email', root);
   if (email && user?.email && !email.value) email.value = user.email;
+
+  // Bind refresh directly after every render, including the unconfigured-Supabase screen.
+  root.querySelector('[data-hg-action="refresh"]')?.addEventListener('click', () => {
+    window.location.reload();
+  });
 }
 
 function setMode(next) {
