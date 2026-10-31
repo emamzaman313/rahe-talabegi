@@ -72,7 +72,8 @@ function stat(n,label){return `<div class="metric"><strong>${n}</strong><span>${
 function empty(msg){return `<div class="empty">${msg}</div>`}
 function navRender(){document.getElementById('nav').innerHTML=NAV.map(([id,icon,label])=>`<button class="navitem ${state.ui.page===id?'active':''}" data-act="go" data-page="${id}" ${state.ui.page===id?'aria-current="page"':''}><span class="navicon" aria-hidden="true">${icon}</span><span>${label}</span></button>`).join('')}
 function render(){setTheme();navRender();const main=document.getElementById('main');const pages={home:renderHome,planner:renderPlanner,goals:renderGoals,study:renderStudy,rahdan:renderRahdan,ethics:renderEthics,beliefs:renderBeliefs,media:renderMedia,amr:renderAmr,family:renderFamily,unity:renderUnity,foods:renderFoods,journal:renderJournal,sources:renderSources,support:renderSupport,about:renderAbout,settings:renderSettings,search:renderSearch};main.innerHTML=(pages[state.ui.page]||renderHome)();if(state.ui.page==='rahdan')loadRahdan();}
-function renderAbout(){return `${head("دربارهٔ هم‌قدم","آشنایی با سازنده و هدف این همراه آموزشی")}'} 
+function renderAbout(){return `${head("دربارهٔ هم‌قدم","آشنایی با سازنده و هدف این همراه آموزشی")}
+
 <div class="about-hero">
   <div class="about-mark" aria-hidden="true">هـ</div>
   <div><span class="about-kicker">همراه مسیر علم و رشد</span><h2>هم‌قدم؛ برای یادگیری آرام، پیوسته و هدفمند</h2>
