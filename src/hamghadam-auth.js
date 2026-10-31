@@ -170,7 +170,7 @@ function renderGate() {
     ${showPassword ? `<div class="hg-field"><label for="hg-password">${passwordLabel}</label><input id="hg-password" name="password" type="password" autocomplete="${mode === 'update' || mode === 'set-password' ? 'new-password' : 'current-password'}" minlength="8" maxlength="128" required placeholder="حداقل ۸ نویسه" dir="ltr"></div>` : ''}
     ${notice ? `<div class="hg-alert ${escape(noticeType)}" role="status" aria-live="polite">${escape(notice)}</div>` : ''}
     <button class="hg-submit" type="submit" ${busy ? 'disabled' : ''}><span>${busy ? 'در حال انجام…' : submit}</span><span aria-hidden="true">↙</span></button>
-    <div class="hg-form-row">${mode === 'login' ? `<button class="hg-link" type="button" data-hg-mode="signup">حساب ندارم؛ ثبت‌نام</button><button class="hg-link" type="button" data-hg-mode="reset">رمزم را فراموش کرده‌ام</button>` : mode === 'signup' ? `<button class="hg-link" type="button" data-hg-mode="login">حساب دارم؛ ورود</button>` : mode === 'verify' ? `<button class="hg-link" type="button" data-hg-action="resend-code">ارسال دوبارهٔ کد</button><button class="hg-link" type="button" data-hg-mode="${escape(pendingMode === 'recovery' ? 'reset' : pendingMode || 'login')}">تغییر ایمیل</button>` : mode === 'update' ? `<button class="hg-link" type="button" data-hg-mode="login">لغو</button>` : `<button class="hg-link" type="button" data-hg-mode="login">بازگشت به ورود</button>`}</div>
+    <div class="hg-form-row">${mode === 'login' ? `<button class="hg-link" type="button" data-hg-mode="signup">حساب ندارم؛ ثبت‌نام</button><button class="hg-link" type="button" data-hg-mode="reset">رمزم را فراموش کرده‌ام</button>` : mode === 'signup' ? `<button class="hg-link" type="button" data-hg-mode="login">حساب دارم؛ ورود</button>` : mode === 'verify' ? `<button class="hg-link" type="button" data-hg-action="resend-code">ارسال دوبارهٔ کد</button><button class="hg-link" type="button" data-hg-mode="${escape(pendingMode === 'recovery' ? 'reset' : pendingMode || 'login')}">تغییر ایمیل</button>` : mode === 'update' ? `<button class="hg-link" type="button" data-hg-mode="login">لغو</button>` : `<button class="hg-link" type="button" data-hg-mode="login">بازگشت به ورود</button>`}<button class="hg-link" type="button" data-hg-action="refresh" aria-label="بارگذاری دوباره صفحه ورود">↻ رفرش و تلاش مجدد</button></div>
   </form>` : `<div class="hg-alert warn" role="status">اتصال امن هنوز در تنظیمات ساخت وب/اندروید تعریف نشده است. تا زمان تنظیم نشانی پروژه و کلید عمومی Supabase، ورود فعال نمی‌شود.</div><ol class="hg-setup-list"><li>نشانی پروژه را با متغیر <code>VITE_SUPABASE_URL</code> تنظیم کن.</li><li>کلید عمومی را با متغیر <code>VITE_SUPABASE_PUBLISHABLE_KEY</code> تنظیم کن.</li><li>برنامه را دوباره build کن. کلید secret یا <code>service_role</code> را هرگز داخل اپ قرار نده.</li></ol>`;
 
   return `<div class="hg-shell"><section class="hg-story" aria-label="معرفی هم‌قدم">
@@ -524,6 +524,11 @@ function mount() {
     const modeButton = event.target.closest('[data-hg-mode]');
     if (modeButton && root.contains(modeButton)) { setMode(modeButton.dataset.hgMode); return; }
     const action = event.target.closest('[data-hg-action]')?.dataset.hgAction;
+    if (action === 'refresh' && root.contains(event.target.closest('[data-hg-action="refresh"]'))) {
+      // A full reload reinitializes Supabase and rechecks any session persisted during a stalled request.
+      window.location.reload();
+      return;
+    }
     if (action === 'profile') void editProfile();
     else if (action === 'photo') void chooseProfilePhoto();
     else if (action === 'logout') void logout();
