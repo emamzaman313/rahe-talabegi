@@ -1,0 +1,38 @@
+name: Auth and registration regression checks
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/hamghadam-auth.js'
+      - 'src/supabase-client.js'
+      - 'src/timed-fetch.mjs'
+      - 'tests/**'
+      - '.github/workflows/auth-regression.yml'
+  push:
+    branches:
+      - 'fix/auth-*'
+    paths:
+      - 'src/hamghadam-auth.js'
+      - 'tests/**'
+      - '.github/workflows/auth-regression.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm test
+      - run: npm run build
+        env:
+          VITE_SUPABASE_URL: https://gnbwcupxtbsjdgnncort.supabase.co
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
