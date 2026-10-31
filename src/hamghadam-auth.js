@@ -252,7 +252,9 @@ async function acceptSession(session, { showWebPromo = false } = {}) {
     queuedWebPromoSession = null;
     activeWebPromoKey = null;
     closeWebAppPromo();
+    $('#hg-account-box')?.remove();
     mode = 'login';
+    busy = false;
     setGateOpen(true);
     renderGateIntoRoot();
     return;
@@ -475,15 +477,43 @@ async function chooseProfilePhoto(){
 }
 
 async function logout() {
-  if (!supabase || busy) return;
+  if (!supabase || busy || !user) return;
   busy = true;
+  const button = document.querySelector('[data-hg-action="logout"]');
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'در حال خروج…';
+    button.setAttribute('aria-busy', 'true');
+  }
+
   try {
-    await unregisterPushDevice();
-    const { error } = await withDeadline(supabase.auth.signOut(), 'خروج از حساب');
+    // Push cleanup is best-effort: a notification/network error must never block logout.
+    try {
+      await withDeadline(unregisterPushDevice(), 'قطع اعلان‌های این دستگاه', 5000);
+    } catch (pushError) {
+      console.warn('Push cleanup skipped during logout:', pushError?.message || pushError);
+    }
+
+    const { error } = await withDeadline(
+      supabase.auth.signOut({ scope: 'local' }),
+      'خروج از حساب',
+      AUTH_DEADLINE_MS,
+    );
     if (error) throw error;
+
+    // Do not depend solely on the auth event callback to update the visible UI.
+    await acceptSession(null);
+    showLegacyToast('با موفقیت از حساب خارج شدی.');
   } catch (error) {
+    showLegacyToast(`خروج انجام نشد: ${error?.message || 'خطای شبکه'}`);
+  } finally {
     busy = false;
-    showLegacyToast(`خروج انجام نشد: ${error?.message || 'خطا'}`);
+    const currentButton = document.querySelector('[data-hg-action="logout"]');
+    if (currentButton) {
+      currentButton.disabled = false;
+      currentButton.textContent = 'خروج';
+      currentButton.removeAttribute('aria-busy');
+    }
   }
 }
 
