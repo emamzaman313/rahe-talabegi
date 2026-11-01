@@ -29,6 +29,11 @@ const state = {
 const TAB_ITEMS = [
   ['themes','✦','تم و مناسبت'], ['debates','⚖','مباحثه'], ['groups','◌','گروه بحث'], ['chats','☏','گفت‌وگوی عمومی و چت‌ها'], ['study','▤','میز مطالعه'], ['flashcards','◇','مرور فاصله‌دار'], ['quizzes','✓','آزمون'], ['announcements','▱','اعلان‌ها'], ['settings','⚙','تنظیمات'],
 ];
+const TAB_GROUPS = [
+  ['جامعه و گفت‌وگو',['themes','debates','groups','chats','announcements']],
+  ['یادگیری و مرور',['study','flashcards','quizzes']],
+  ['تنظیمات',['settings']],
+];
 const CHAT_ROLE_PRESETS = [
   ['reader','خواننده'],['participant','همراه گفتگو'],['helper','یار گروه'],['greeter','خوشامدگو'],['scribe','ثبت‌کننده گفتگو'],
   ['resource_curator','گردآورنده منابع'],['poll_creator','نظرساز'],['event_host','میزبان برنامه'],['member_support','پشتیبان اعضا'],['trusted_member','عضو معتمد'],
@@ -60,7 +65,7 @@ function getRoot() {
   el = document.createElement('div'); el.id = 'hgd-suite-root'; el.setAttribute('dir','rtl'); el.setAttribute('aria-label','قابلیت‌های تکمیلی هم‌قدم');
   el.innerHTML = `<section class="hgd-window" role="dialog" aria-modal="true" aria-labelledby="hgd-title">
     <header class="hgd-header"><div class="hgd-brand"><div class="hgd-brand-mark">هـ</div><div><h2 id="hgd-title">هم‌قدم | امکانات اجتماعی و مطالعه</h2><p>گفت‌وگو، مباحثه، مناسبت‌ها و پیشرفت درسی</p></div></div><div class="hgd-row"><button type="button" class="hgd-notification-button" data-hgd-action="notifications" aria-label="اعلان‌ها">🔔 <span data-notification-count></span></button><button type="button" class="hgd-close" data-hgd-action="close" aria-label="بستن">×</button></div></header>
-    <nav class="hgd-tabs" aria-label="بخش‌های هم‌قدم">${TAB_ITEMS.filter(([id])=>!['debates','groups'].includes(id)).map(([id,ico,label]) => `<button class="hgd-tab" type="button" data-hgd-tab="${id}"><span>${ico}</span> ${label}</button>`).join('')}</nav>
+    <nav class="hgd-tabs" aria-label="بخش‌های هم‌قدم">${TAB_GROUPS.map(([group,ids],index)=>`<details class="hgd-tab-group" ${ids.includes(state.tab)||index===0?'open':''}><summary>${group}<span aria-hidden="true">⌄</span></summary><div>${TAB_ITEMS.filter(([id])=>ids.includes(id)).map(([id,ico,label])=>`<button class="hgd-tab" type="button" data-hgd-tab="${id}"><span>${ico}</span> ${label}</button>`).join('')}</div></details>`).join('')}</nav>
     <main class="hgd-content" id="hgd-content"><div class="hgd-empty">در حال آماده‌سازی…</div></main>
     <footer class="hgd-foot"><span id="hgd-connection">وضعیت اتصال بررسی می‌شود</span><span>همهٔ داده‌های آنلاین به مجوزهای سرور وابسته‌اند؛ موفقیت فقط پس از پاسخ سرور اعلام می‌شود.</span></footer>
   </section>`;
@@ -86,14 +91,6 @@ function getRoot() {
 
 function addLaunchers() {
   const actions = $('.topactions');
-  if (actions && !$('#hgd-suite-launcher')) {
-    const b = document.createElement('button'); b.id='hgd-suite-launcher'; b.type='button'; b.className='btn hgd-launcher'; b.textContent='✦ مباحثه و جامعه'; b.addEventListener('click', () => void openSuite('debates'));
-    const ref = $('#hg-account-box', actions); actions.insertBefore(b, ref || null);
-  }
-  if (actions && !$('#hgd-chat-launcher')) {
-    const b = document.createElement('button'); b.id='hgd-chat-launcher'; b.type='button'; b.className='btn hgd-launcher'; b.textContent='☏ چت‌ها'; b.setAttribute('aria-label','باز کردن گفت‌وگوهای خصوصی، گروه‌ها و کانال‌ها'); b.addEventListener('click', () => void openSuite('chats'));
-    const ref = $('#hg-account-box', actions); actions.insertBefore(b, ref || null);
-  }
   if (isAdmin() && actions && !$('#hgd-admin-launcher')) {
     const a = document.createElement('a'); a.id='hgd-admin-launcher'; a.className='btn hgd-launcher'; a.href='./admin.html'; a.textContent='▣ پنل مدیریت';
     const ref = $('#hg-account-box', actions); actions.insertBefore(a, ref || null);
@@ -214,7 +211,7 @@ function renderUnauthed(message) {
 
 async function setTab(tab) {
   if (!TAB_ITEMS.some((x)=>x[0]===tab)) tab='themes'; state.tab=tab;
-  const root=getRoot(); $$('.hgd-tab',root).forEach((el)=>el.classList.toggle('active',el.dataset.hgdTab===tab));
+  const root=getRoot(); $$('.hgd-tab',root).forEach((el)=>el.classList.toggle('active',el.dataset.hgdTab===tab)); $$('.hgd-tab-group',root).forEach((group)=>{const contains=$$('.hgd-tab',group).some((el)=>el.dataset.hgdTab===tab);if(contains)group.open=true;});
   const content=$('#hgd-content',root); content.innerHTML='<div class="hgd-empty">در حال دریافت اطلاعات از سرور…</div>';
   applyPageBackground(content,tab);
   if (!state.user) { renderUnauthed('ابتدا وارد حساب شو.'); return; }

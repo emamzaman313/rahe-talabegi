@@ -7,6 +7,7 @@ const root = path.resolve(import.meta.dirname, '..');
 const auth = fs.readFileSync(path.join(root, 'src/hamghadam-auth.js'), 'utf8');
 const support = fs.readFileSync(path.join(root, 'src/support-chat.js'), 'utf8');
 const suite = fs.readFileSync(path.join(root, 'src/hamghadam-suite.js'), 'utf8');
+const shell = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 const migration = fs.readFileSync(path.join(root, 'supabase/migrations/20261029185356_chat_discovery_and_covers.sql'), 'utf8');
 
 test('new accounts verify email then set a password; later sign-in uses email and password', () => {
@@ -26,8 +27,8 @@ test('support screen uses the same email code verification instead of a password
 });
 
 test('chat UI discovers people by display name and allows named groups/channels with a cover image', () => {
-  assert.ok(suite.includes('hgd-chat-launcher'));
-  assert.ok(suite.includes("openSuite('chats')"));
+  assert.match(shell, /data-act="online-open" data-online-tab="\$\{tab\}"/);
+  assert.match(shell, /window\.dispatchEvent\(new CustomEvent\('hgd:open-tab'/);
   assert.match(suite, /data-hgd-form="search-chat-users"/);
   assert.match(suite, /rpc\('search_chat_users'/);
   assert.match(suite, /button\('شروع گفتگو','start-direct-chat'/);
