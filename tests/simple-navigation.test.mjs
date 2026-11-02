@@ -14,7 +14,7 @@ test('home gives first-time users four clear starting actions', () => {
 
 test('navigation uses short everyday labels and keeps advanced pages grouped', () => {
   assert.match(html, /const NAV_GROUPS=\[\['شروع کن'/);
-  assert.match(html, /\['بیشتر',\['sources','support','about','settings'\]\]/);
+  assert.match(html, /\['بیشتر',\['sources','support','settings'\]\]/);
   assert.match(html, /'برنامه من'/);
   assert.match(html, /'کارهای امروز'/);
 });
