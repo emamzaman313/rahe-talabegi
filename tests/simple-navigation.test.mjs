@@ -20,7 +20,7 @@ test('navigation uses short everyday labels and keeps advanced pages grouped', (
 });
 
 test('simple home keeps existing task actions and profile setup', () => {
-  assert.match(html, /data-act="task-toggle"/);
+  assert.match(html, /btn\('task-toggle'/);
   assert.match(html, /data-form="profile"/);
   assert.match(html, /id="hamghadam-simple-ui"/);
 });
