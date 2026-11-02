@@ -24,3 +24,10 @@ test('email auth and responsive layout remain available', () => {
  assert.match(auth, /verifyOtp/);
  assert.match(html, /@media\(max-width:640px\)/);
 });
+
+test('Google OAuth is available for both sign-in and registration', () => {
+ assert.match(auth, /data-hg-action="google"/);
+ assert.match(auth, /signInWithOAuth\(\{ provider: 'google'/);
+ assert.match(auth, /prompt: 'select_account'/);
+ assert.match(auth, /ادامه با حساب گوگل/);
+});
