@@ -233,11 +233,49 @@ button:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible,
  *,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}
 }
 </style>
+
+<style id="hamghadam-modern-minimal">
+/* Modern minimal refresh — CSS-only; preserves application behavior */
+:root{--bg:#f6f7fb;--paper:#fff;--ink:#182238;--muted:#748097;--line:#e8ebf2;--teal:#635bff;--teal2:#20b8ad;--mint:#eeedff;--navy:#22264b;--soft:#f7f8fc;--gold:#f4bd58;--rose:#e45d79;--r:20px;--shadow:0 8px 28px rgba(30,40,80,.055);--shadow-hover:0 16px 38px rgba(30,40,80,.11)}
+body{background:radial-gradient(ellipse at 0 0,rgba(99,91,255,.10),transparent 30%),radial-gradient(ellipse at 100% 5%,rgba(32,184,173,.09),transparent 26%),var(--bg);letter-spacing:-.12px}
+.app{max-width:1440px;padding:clamp(9px,1.5vw,22px)}
+.topbar{top:8px;padding:10px 14px;border:1px solid rgba(229,233,245,.9);border-radius:20px;background:rgba(255,255,255,.84);backdrop-filter:blur(20px);box-shadow:0 8px 30px rgba(35,42,86,.06)}
+.brandmark{border-radius:16px;background:linear-gradient(145deg,#655cf3,#21b9ad);box-shadow:0 8px 20px rgba(99,91,255,.22)}
+.global-search-wrap{border-radius:14px;background:#f8f9ff;border-color:#eaecf7}
+.layout{grid-template-columns:236px minmax(0,1fr);gap:16px}
+.sidebar{top:86px;border:1px solid #e9ebf5;border-radius:21px;background:rgba(255,255,255,.9);box-shadow:0 8px 28px rgba(35,42,86,.05)}
+.navgroup{border-radius:13px}.navgroup summary{padding:9px 11px;color:#7b8499}
+.navitem{min-height:42px;border-radius:12px;font-weight:550;transition:background .16s,transform .16s}
+.navitem:hover{background:#f1f1ff;transform:translateX(-2px)}
+.navitem.active{background:linear-gradient(100deg,#efeeff,#e9fbf8);border-color:#e4e3ff;color:#5149dc;box-shadow:inset -3px 0 #655cf3}
+.hero{border-radius:25px;background:linear-gradient(115deg,#25264f 0%,#554ee4 57%,#20a99f 100%);box-shadow:0 16px 38px rgba(72,67,190,.16)}
+.card,.metric{border:1px solid #eaedf5;border-radius:19px;background:rgba(255,255,255,.94);box-shadow:var(--shadow);transition:transform .18s,box-shadow .18s}
+.card:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover)}
+.metric strong{color:#5c55e9}
+.btn{border:1px solid #e7eaf3;border-radius:12px;background:#fff;box-shadow:0 2px 8px rgba(30,40,80,.035);font-weight:650;transition:transform .16s,box-shadow .16s,background .16s}
+.btn:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(35,42,86,.09)}
+.btn.primary{border:0;background:linear-gradient(120deg,#655cf3,#5148d8);box-shadow:0 7px 17px rgba(99,91,255,.2)}
+.btn.soft{background:#f0efff;border-color:#e7e5ff;color:#5049c9}
+.field input,.field textarea,.field select,.searchinput{border-radius:12px;border-color:#e6e9f2;background:#fbfcff}
+.footer.site-footer{display:block;text-align:center;margin-top:18px;padding:10px;border:0;background:transparent;box-shadow:none;color:#8992a7}
+.simple-welcome{border-radius:24px;background:linear-gradient(120deg,#25264f,#5b54e8 62%,#22aaa1);box-shadow:0 14px 34px rgba(76,70,190,.15)}
+.simple-actions .btn{border-radius:13px}
+.dark{--bg:#101522;--paper:#191f30;--ink:#edf0fa;--muted:#a3abc0;--line:#2a3247;--teal:#938cff;--teal2:#45d0c2;--mint:#292747;--soft:#20283a;--shadow:0 10px 28px #0003;--shadow-hover:0 16px 38px #0005}
+.dark .topbar,.dark .sidebar,.dark .card,.dark .metric{background:rgba(25,31,48,.94);border-color:#2b3348}
+.dark .global-search-wrap,.dark .field input,.dark .field textarea,.dark .field select,.dark .searchinput{background:#151c2c;border-color:#303950;color:var(--ink)}
+.dark .navitem.active{background:#292747;color:#c7c3ff;border-color:#3c376c}
+.dark .btn{background:#20283a;border-color:#333d55;color:var(--ink)}
+.dark .btn.primary{background:linear-gradient(120deg,#655cf3,#5148d8);color:#fff}
+.dark .footer.site-footer{background:transparent;border:0}
+@media(max-width:900px){.layout{grid-template-columns:1fr}.sidebar{position:relative;top:auto;max-height:none}.navlist{grid-template-columns:repeat(2,minmax(0,1fr))}.navgroup[open]{grid-column:1/-1}}
+@media(max-width:640px){.app{padding:8px}.topbar{position:relative;top:auto;border-radius:16px}.layout{gap:10px}.sidebar{padding:9px}.navlist{grid-template-columns:1fr 1fr}.pagehead h2{font-size:21px}.hero{padding:22px;border-radius:20px}.card{padding:14px}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+</style>
 </head>
 <body><div class="app">
 <header class="topbar"><div class="brand"><div class="brandmark" aria-hidden="true">ر</div><div><h1>هم‌قدم</h1><small>همراه مسیر علم، مطالعه و رشد</small></div></div><div class="topactions"><button class="btn" data-act="go" data-page="home">⌂ خانه</button><label class="global-search-wrap"><span aria-hidden="true">⌕</span><input id="global-search" type="search" placeholder="جست‌وجوی برنامه و کتاب…" aria-label="جست‌وجوی سراسری"></label><button class="btn" data-act="go" data-page="settings">⚙ تنظیمات</button><a class="btn" href="./admin.html" id="admin-home-link" hidden>▣ مدیریت</a></div></header>
 <div class="layout"><aside class="sidebar" aria-label="منوی اصلی"><div class="sidecap"><span>از اینجا شروع کن</span><span>☘</span></div><nav class="navlist" id="nav"></nav><div class="sidefoot">🔒 اطلاعات این نسخه روی همین دستگاه ذخیره می‌شود. برای اطمینان، مرتباً پشتیبان بگیر.</div></aside><main class="main" id="main" tabindex="-1"></main></div>
-<footer class="footer site-footer"><div class="footer-brand"><span class="footer-mark">هـ</span><div><strong>هم‌قدم</strong><span>همراه مسیر علم، مطالعه و رشد</span></div></div><nav class="footer-links" aria-label="پیوندهای پایانی"><button type="button" data-act="go" data-page="home">خانه</button><button type="button" data-act="go" data-page="about">دربارهٔ سازنده</button><button type="button" data-act="go" data-page="settings">تنظیمات</button><a href="https://github.com/emamzaman313/rahe-talabegi" target="_blank" rel="noopener noreferrer">مخزن پروژه</a></nav><p>هم‌قدم برای یادگیری آرام، پیوسته و هدفمند ساخته شده است.</p></footer></div><div id="toast" class="toast hide" role="status" aria-live="polite"></div>
+<footer class="footer site-footer">هم‌قدم · همراه مسیر یادگیری و مطالعه</footer></div><div id="toast" class="toast hide" role="status" aria-live="polite"></div>
 <script>
 'use strict';
 const openTabParam=new URLSearchParams(location.search).get('open');
@@ -246,8 +284,8 @@ function openOnlineTab(tab){if(tab==='support'){go('support');return}if(!['theme
 if(openTabParam)window.addEventListener('load',()=>openOnlineTab(openTabParam));
 window.addEventListener('hgd:navigate',event=>openOnlineTab(event.detail?.tab));
 const STORE_KEY='rahe-talabegi-v1';
-const NAV=[['home','🏠','خانه'],['planner','🗓','برنامه من'],['goals','🎯','هدف‌ها'],['study','📚','درس‌ها'],['rahdan','🪶','عربی'],['ethics','🌱','رفتار خوب'],['beliefs','🧭','باورها'],['media','📱','گوشی و رسانه'],['amr','🤝','کارهای خوب'],['family','🏡','خانواده'],['unity','☪','گفت‌وگو'],['foods','🍃','خوراک'],['journal','📝','کارهای امروز'],['sources','🔎','کتاب‌ها'],['support','💬','کمک'],['about','ℹ️','دربارهٔ برنامه'],['settings','⚙','تنظیمات']];
-const NAV_GROUPS=[['شروع کن',['home','planner','goals']],['درس‌ها',['study','rahdan','beliefs']],['زندگی روزانه',['journal','ethics','media','amr','family','foods']],['گفت‌وگو',['unity','community','chats']],['بیشتر',['sources','support','about','settings']]];
+const NAV=[['home','🏠','خانه'],['planner','🗓','برنامه من'],['goals','🎯','هدف‌ها'],['study','📚','درس‌ها'],['rahdan','🪶','عربی'],['ethics','🌱','رفتار خوب'],['beliefs','🧭','باورها'],['media','📱','گوشی و رسانه'],['amr','🤝','کارهای خوب'],['family','🏡','خانواده'],['unity','☪','گفت‌وگو'],['foods','🍃','خوراک'],['journal','📝','کارهای امروز'],['sources','🔎','کتاب‌ها'],['support','💬','کمک'],['settings','⚙','تنظیمات']];
+const NAV_GROUPS=[['شروع کن',['home','planner','goals']],['درس‌ها',['study','rahdan','beliefs']],['زندگی روزانه',['journal','ethics','media','amr','family','foods']],['گفت‌وگو',['unity','community','chats']],['بیشتر',['sources','support','settings']]];
 const TODAY=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
 function plannerBounds(anchor){let d=new Date((anchor||TODAY())+'T12:00:00');if(Number.isNaN(d.getTime()))d=new Date(TODAY()+'T12:00:00');const iso=x=>x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');const start=new Date(d);start.setDate(start.getDate()-((start.getDay()+6)%7));const end=new Date(start);end.setDate(end.getDate()+6);return {weekStart:iso(start),weekEnd:iso(end),month:(anchor||TODAY()).slice(0,7),year:(anchor||TODAY()).slice(0,4)}}
 const clone=x=>JSON.parse(JSON.stringify(x));
@@ -272,21 +310,7 @@ function sel(label,name,opts,value='',span=false){return `<div class="field ${sp
 function stat(n,label){return `<div class="metric"><strong>${n}</strong><span>${label}</span></div>`}
 function empty(msg){return `<div class="empty">${msg}</div>`}
 function navRender(){const nav=document.getElementById('nav');nav.innerHTML=NAV_GROUPS.map(([group,ids],index)=>{const pages=ids.map(id=>NAV.find(item=>item[0]===id)).filter(Boolean);return `<details class="navgroup" ${pages.some(([id])=>id===state.ui.page)||index===0?'open':''}><summary>${group}<span aria-hidden="true">⌄</span></summary><div class="navgroup-items">${ids.map(id=>{if(id==='community'||id==='chats'){const tab=id==='community'?'debates':'chats',icon=id==='community'?'⚖':'☏',label=id==='community'?'مباحثه و جامعه':'گفت‌وگو و چت‌ها';return `<button class="navitem" data-act="online-open" data-online-tab="${tab}"><span class="navicon" aria-hidden="true">${icon}</span><span>${label}</span></button>`}const [page,icon,label]=pages.find(([pageId])=>pageId===id);return `<button class="navitem ${state.ui.page===page?'active':''}" data-act="go" data-page="${page}" ${state.ui.page===page?'aria-current="page"':''}><span class="navicon" aria-hidden="true">${icon}</span><span>${label}</span></button>`}).join('')}</div></details>`}).join('')}
-function render(){setTheme();navRender();const main=document.getElementById('main');const pages={home:renderHome,planner:renderPlanner,goals:renderGoals,study:renderStudy,rahdan:renderRahdan,ethics:renderEthics,beliefs:renderBeliefs,media:renderMedia,amr:renderAmr,family:renderFamily,unity:renderUnity,foods:renderFoods,journal:renderJournal,sources:renderSources,support:renderSupport,about:renderAbout,settings:renderSettings,search:renderSearch};main.innerHTML=(pages[state.ui.page]||renderHome)();if(state.ui.page==='rahdan')loadRahdan();}
-function renderAbout(){return `${head("دربارهٔ هم‌قدم","آشنایی با سازنده و هدف این همراه آموزشی")}
-
-<div class="about-hero">
-  <div class="about-mark" aria-hidden="true">هـ</div>
-  <div><span class="about-kicker">همراه مسیر علم و رشد</span><h2>هم‌قدم؛ برای یادگیری آرام، پیوسته و هدفمند</h2>
-  <p>هم‌قدم با هدف ساده‌ترکردن برنامه‌ریزی، مطالعه، مرور و همفکری در مسیر طلبگی طراحی شده است؛ ابزاری برای اینکه مسیر یادگیری روشن‌تر و پیگیری آن آسان‌تر باشد.</p></div>
-</div>
-<div class="grid two about-grid">
-  <section class="card about-card"><span class="about-icon">👤</span><h3>دربارهٔ سازنده</h3><h4 class="about-name">محمد فرخی</h4><p>طلبه و ایده‌پرداز هم‌قدم؛ علاقه‌مند به طراحی ابزارهای کاربردی برای نظم‌بخشیدن به مطالعه و تسهیل یادگیری علوم حوزوی.</p><p class="muted small">این معرفی فقط شامل اطلاعاتی است که برای معرفی عمومی پروژه در نظر گرفته شده است.</p></section>
-  <section class="card about-card"><span class="about-icon">🎯</span><h3>هدف هم‌قدم</h3><p>کمک به برنامه‌ریزی واقع‌بینانه، مطالعهٔ منظم، مرور آموخته‌ها، دسترسی بهتر به منابع و گفت‌وگوی علمی در یک محیط فارسی و راست‌چین.</p><div class="tagrow"><span class="pill">مطالعه</span><span class="pill">برنامه‌ریزی</span><span class="pill">مرور</span><span class="pill">همفکری</span></div></section>
-</div>
-<section class="card about-values"><h3>اصول طراحی</h3><div class="grid three"><div><b>سادگی</b><p class="muted small">هر امکان باید قابل‌فهم و در دسترس باشد.</p></div><div><b>پیوستگی</b><p class="muted small">پیشرفت با قدم‌های کوچک و منظم شکل می‌گیرد.</p></div><div><b>مسئولیت‌پذیری</b><p class="muted small">اطلاعات و منابع باید با دقت و شفافیت ارائه شوند.</p></div></div></section>
-<div class="row about-actions">${btn('go','بازگشت به خانه','data-page="home"','btn primary')} <a class="btn" href="https://github.com/emamzaman313/rahe-talabegi" target="_blank" rel="noopener noreferrer">مشاهدهٔ مخزن پروژه ↗</a></div>
-`}
+function render(){setTheme();navRender();const main=document.getElementById('main');const pages={home:renderHome,planner:renderPlanner,goals:renderGoals,study:renderStudy,rahdan:renderRahdan,ethics:renderEthics,beliefs:renderBeliefs,media:renderMedia,amr:renderAmr,family:renderFamily,unity:renderUnity,foods:renderFoods,journal:renderJournal,sources:renderSources,support:renderSupport,settings:renderSettings,search:renderSearch};main.innerHTML=(pages[state.ui.page]||renderHome)();if(state.ui.page==='rahdan')loadRahdan();}
 function renderHome(){
 const today=TODAY(),tasks=state.tasks.filter(t=>t.date===today),done=tasks.filter(t=>t.status==='done').length,next=tasks.find(t=>t.status!=='done');
 return head('سلام! 👋','برای شروع، یکی از دکمه‌های زیر را بزن.')+

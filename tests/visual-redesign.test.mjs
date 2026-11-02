@@ -25,3 +25,14 @@ test('all original feature modules remain connected', () => {
     'src/public-chat-moderation.js'
   ]) assert.ok(html.includes(path), 'missing feature module: ' + path);
 });
+
+test('creator profile is fully removed while app navigation remains', () => {
+  assert.doesNotMatch(html, /دربارهٔ سازنده|دربارهٔ برنامه|function renderAbout|about:renderAbout/);
+  assert.match(html, /data-page="home"/);
+  assert.match(html, /data-page="settings"/);
+});
+test('modern minimal visual layer is present', () => {
+  assert.match(html, /hamghadam-modern-minimal/);
+  assert.match(html, /backdrop-filter:blur\(20px\)/);
+  assert.match(html, /prefers-reduced-motion/);
+});
