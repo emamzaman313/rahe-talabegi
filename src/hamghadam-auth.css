@@ -165,3 +165,8 @@ html, body {
     white-space: normal;
   }
 }
+
+.hg-google-button{width:100%;min-height:48px;display:flex;align-items:center;justify-content:center;gap:11px;border:1px solid rgba(224,241,236,.24);border-radius:13px;background:#fff;color:#252a32;font:inherit;font-size:13px;font-weight:800;cursor:pointer;box-shadow:0 5px 16px #020f1730;transition:transform .16s,box-shadow .16s}
+.hg-google-button:hover{transform:translateY(-1px);box-shadow:0 9px 22px #020f1740}
+.hg-google-button:focus-visible{outline:3px solid #f2cb7d;outline-offset:3px}
+.hg-google-button svg{width:21px;height:21px;flex:none}
