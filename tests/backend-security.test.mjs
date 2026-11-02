@@ -32,7 +32,7 @@ test('client bundle never contains a service-role credential', () => {
 
 test('the mobile web entry includes the support page and bundles its module', () => {
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-  assert.match(html, /\['support','💬','پشتیبانی'\]/);
+  assert.match(html, /\['support','💬','کمک'\]/);
   assert.match(html, /support:renderSupport/);
   assert.match(html, /type="module" src="\/src\/support-chat\.js"/);
 });
