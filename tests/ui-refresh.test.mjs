@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
 
 test('creator page is reachable from navigation and page renderer', () => {
-  assert.match(html, /\['about','ℹ️','دربارهٔ سازنده'\]/);
+  assert.match(html, /\['about','ℹ️','دربارهٔ برنامه'\]/);
   assert.match(html, /about:renderAbout/);
   assert.match(html, /function renderAbout\(\)/);
   assert.match(html, /محمد فرخی/);
