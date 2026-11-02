@@ -19,7 +19,7 @@ function dateTimeLocalInZoneIso(value, zone) {
   if(['year','month','day','hour','minute'].some(k=>String(v[k]).padStart(k==='year'?4:2,'0')!==m[['year','month','day','hour','minute'].indexOf(k)+1])) throw new Error('این زمان محلی به‌علت تغییر ساعت رسمی قابل تبدیلِ بی‌ابهام نیست؛ زمان دیگری انتخاب کن.');
   return new Date(first).toISOString();
 }
-const TAB=[['overview','نمای کلی'],['users','کاربران و نقش‌ها'],['reports','گزارش و رسیدگی'],['moderation','واژه‌های ممنوع'],['support','گفت‌وگوی پشتیبانی'],['themes','تم شهادت و ولادت'],['backgrounds','پس‌زمینه‌ها'],['features','قابلیت‌ها'],['chat','گروه‌ها و کانال‌ها'],['group-elections','تأیید مسئول گروه'],['debates','مباحثه'],['quizzes','آزمون‌ها'],['announcements','اطلاعیه‌ها'],['audit','سوابق مدیریتی']];
+const TAB=[['overview','خانهٔ مدیریت'],['users','کاربران'],['reports','گزارش‌ها'],['moderation','کلمات ممنوع'],['support','پیام‌های پشتیبانی'],['themes','مناسبت‌ها'],['backgrounds','پس‌زمینه'],['features','امکانات برنامه'],['chat','گروه‌ها و کانال‌ها'],['group-elections','مسئول گروه'],['debates','بحث‌ها'],['quizzes','آزمون‌ها'],['announcements','خبرها'],['audit','کارهای مدیران']];
 let currentUser=null, currentTab='overview', featureSettings={}, userCache=[], reportCache=[], themeCache=[], quizCache=[];
 let supportSelectedId=null;
 const alertBox=(msg,type='info')=>{const el=$('#admin-alert');if(el)el.innerHTML=msg?`<div class="admin-alert ${type==='error'?'error':''}">${esc(msg)}</div>`:'';};
@@ -30,7 +30,7 @@ const table=(headers,rows)=>`<div class="admin-table-wrap"><table class="admin-t
 function appRoles(u=currentUser){const m=u?.app_metadata||{};return [...new Set([...(Array.isArray(m.roles)?m.roles:[]),...(typeof m.role==='string'?[m.role]:[])])];}
 function isAdmin(){const r=appRoles();return r.includes('admin')||r.includes('super_admin');}
 function isSuper(){return appRoles().includes('super_admin');}
-const TAB_GROUPS=[['نمای کلی',['overview']],['کاربران و امنیت',['users','reports','moderation','support']],['جامعه و محتوا',['chat','group-elections','debates','quizzes','announcements']],['ظاهر و تنظیمات',['themes','backgrounds','features']],['سوابق',['audit']]];
+const TAB_GROUPS=[['شروع',['overview']],['مدیریت کاربران',['users','reports','moderation','support']],['گروه‌ها و درس‌ها',['chat','group-elections','debates','quizzes','announcements']],['ظاهر برنامه',['themes','backgrounds','features']],['سوابق',['audit']]];
 function renderTabs(){const n=$('#admin-tabs');n.innerHTML=TAB_GROUPS.map(([group,ids],index)=>`<details class="admin-tab-group" ${ids.includes(currentTab)||index===0?'open':''}><summary>${group}<span aria-hidden="true">⌄</span></summary><div>${TAB.filter(([id])=>ids.includes(id)).map(([id,label])=>`<button class="admin-tab ${id===currentTab?'active':''}" data-admin-tab="${id}" type="button">${label}</button>`).join('')}</div></details>`).join('');}
 async function callEdge(body){const {data,error}=await supabase.functions.invoke('hamghadam-admin',{body});if(error)throw error;if(data?.error)throw new Error(data.error);return data;}
 async function saveGlobalAudio(value){const {error}=await supabase.from('app_settings').upsert({setting_key:'global_audio',setting_value:value,public_read:true,updated_by:currentUser.id,updated_at:new Date().toISOString()},{onConflict:'setting_key'});if(error)throw error;}

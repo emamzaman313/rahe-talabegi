@@ -27,11 +27,11 @@ const state = {
 };
 
 const TAB_ITEMS = [
-  ['themes','✦','تم و مناسبت'], ['debates','⚖','مباحثه'], ['groups','◌','گروه بحث'], ['chats','☏','گفت‌وگوی عمومی و چت‌ها'], ['study','▤','میز مطالعه'], ['flashcards','◇','مرور فاصله‌دار'], ['quizzes','✓','آزمون'], ['announcements','▱','اعلان‌ها'], ['settings','⚙','تنظیمات'],
+  ['themes','✦','مناسبت‌ها'], ['debates','⚖','بحث علمی'], ['groups','◌','گروه‌ها'], ['chats','☏','پیام‌ها'], ['study','▤','درس‌ها'], ['flashcards','◇','مرور'], ['quizzes','✓','آزمون'], ['announcements','▱','خبرها'], ['settings','⚙','تنظیمات'],
 ];
 const TAB_GROUPS = [
-  ['جامعه و گفت‌وگو',['themes','debates','groups','chats','announcements']],
-  ['یادگیری و مرور',['study','flashcards','quizzes']],
+  ['گفت‌وگو',['themes','debates','groups','chats','announcements']],
+  ['درس‌ها',['study','flashcards','quizzes']],
   ['تنظیمات',['settings']],
 ];
 const CHAT_ROLE_PRESETS = [
@@ -64,7 +64,7 @@ function getRoot() {
   if (el) return el;
   el = document.createElement('div'); el.id = 'hgd-suite-root'; el.setAttribute('dir','rtl'); el.setAttribute('aria-label','قابلیت‌های تکمیلی هم‌قدم');
   el.innerHTML = `<section class="hgd-window" role="dialog" aria-modal="true" aria-labelledby="hgd-title">
-    <header class="hgd-header"><div class="hgd-brand"><div class="hgd-brand-mark">هـ</div><div><h2 id="hgd-title">هم‌قدم | امکانات اجتماعی و مطالعه</h2><p>گفت‌وگو، مباحثه، مناسبت‌ها و پیشرفت درسی</p></div></div><div class="hgd-row"><button type="button" class="hgd-notification-button" data-hgd-action="notifications" aria-label="اعلان‌ها">🔔 <span data-notification-count></span></button><button type="button" class="hgd-close" data-hgd-action="close" aria-label="بستن">×</button></div></header>
+    <header class="hgd-header"><div class="hgd-brand"><div class="hgd-brand-mark">هـ</div><div><h2 id="hgd-title">هم‌قدم | بخش‌های برنامه</h2><p>پیام‌ها، درس‌ها و گروه‌ها</p></div></div><div class="hgd-row"><button type="button" class="hgd-notification-button" data-hgd-action="notifications" aria-label="اعلان‌ها">🔔 <span data-notification-count></span></button><button type="button" class="hgd-close" data-hgd-action="close" aria-label="بستن">×</button></div></header>
     <nav class="hgd-tabs" aria-label="بخش‌های هم‌قدم">${TAB_GROUPS.map(([group,ids],index)=>`<details class="hgd-tab-group" ${ids.includes(state.tab)||index===0?'open':''}><summary>${group}<span aria-hidden="true">⌄</span></summary><div>${TAB_ITEMS.filter(([id])=>ids.includes(id)).map(([id,ico,label])=>`<button class="hgd-tab" type="button" data-hgd-tab="${id}"><span>${ico}</span> ${label}</button>`).join('')}</div></details>`).join('')}</nav>
     <main class="hgd-content" id="hgd-content"><div class="hgd-empty">در حال آماده‌سازی…</div></main>
     <footer class="hgd-foot"><span id="hgd-connection">وضعیت اتصال بررسی می‌شود</span><span>همهٔ داده‌های آنلاین به مجوزهای سرور وابسته‌اند؛ موفقیت فقط پس از پاسخ سرور اعلام می‌شود.</span></footer>
